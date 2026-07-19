@@ -98,7 +98,7 @@ technical_plan:
     - id: "1.4"
       title: "Proxy providers and factory"
       description: "ProxyProvider ABC (Adapter) with RayobyteProxyProvider, ProxyRackProvider, and NullProxyProvider; ProxyProviderFactory selects by config. rotate() yields a fresh exit IP between pages. No credentials are read from anything but injected config / Secrets Manager."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.1"]
