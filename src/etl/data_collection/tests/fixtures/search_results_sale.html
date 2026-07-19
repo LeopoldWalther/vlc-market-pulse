@@ -1,0 +1,134 @@
+<!-- NOTE: hand-crafted structural approximation of a real Idealista search-results page (network fetch to idealista.com was not possible from this sandboxed environment); swap with a captured real page before relying on this in production selector tuning. -->
+<!-- Attempted a live fetch via CloudscraperFetcher against
+     https://www.idealista.com/en/venta-viviendas/valencia-valencia/?pagina=1
+     first: it returned HTTP 403 with a Cloudflare "enable JS" challenge
+     page, confirming cloudscraper alone cannot pass Idealista's current
+     bot protection from this environment. This fixture instead mirrors
+     Idealista's well-documented DOM structure (article.item cards with
+     item-link/item-price/item-detail-char markup) using plausible,
+     entirely fictitious Valencia listings so parser.py's selectors can
+     be developed and tested deterministically, with no network calls. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Homes for sale in Valencia | idealista</title>
+</head>
+<body>
+  <main class="listing-items">
+    <section class="items-container">
+
+      <article class="item" data-element-id="107517743">
+        <div class="item-multimedia">
+          <a href="/inmueble/107517743/" class="item-link">
+            <img src="https://img4.idealista.com/blur/480_360_mq/0/id.pro.es.image.master/aa/bb/cc/107517743.webp" alt="Flat in Ruzafa">
+          </a>
+        </div>
+        <div class="item-info-container">
+          <a class="item-link" href="/inmueble/107517743/">
+            Flat in calle de Ruzafa, Ruzafa
+          </a>
+          <span class="item-price h3-simulated">695.000&euro;</span>
+          <div class="item-detail-char">
+            <span class="item-detail">3 rooms</span>
+            <span class="item-detail">132 m&sup2;</span>
+            <span class="item-detail">2nd floor</span>
+          </div>
+          <div class="item-description description">
+            <p>Bright exterior flat close to the Turia gardens, recently refurbished.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="item" data-element-id="108234501">
+        <div class="item-multimedia">
+          <a href="/inmueble/108234501/" class="item-link">
+            <img src="https://img4.idealista.com/blur/480_360_mq/0/id.pro.es.image.master/dd/ee/ff/108234501.webp" alt="Flat in Benimaclet">
+          </a>
+        </div>
+        <div class="item-info-container">
+          <a class="item-link" href="/inmueble/108234501/">
+            Flat in Benimaclet
+          </a>
+          <span class="item-price h3-simulated">245.000&euro;</span>
+          <div class="item-detail-char">
+            <span class="item-detail">2 rooms</span>
+            <span class="item-detail">78 m&sup2;</span>
+            <span class="item-detail">1st floor</span>
+          </div>
+          <div class="item-description description">
+            <p>Cosy apartment near the university campus, good transport links.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="item" data-element-id="109887654">
+        <div class="item-multimedia">
+          <a href="/inmueble/109887654/" class="item-link">
+            <img src="https://img4.idealista.com/blur/480_360_mq/0/id.pro.es.image.master/11/22/33/109887654.webp" alt="Flat in El Pla del Remei">
+          </a>
+        </div>
+        <div class="item-info-container">
+          <a class="item-link" href="/inmueble/109887654/">
+            Flat in El Pla del Remei
+          </a>
+          <span class="item-price h3-simulated">890.000&euro;</span>
+          <div class="item-detail-char">
+            <span class="item-detail">4 rooms</span>
+            <span class="item-detail">168 m&sup2;</span>
+            <span class="item-detail">5th floor</span>
+          </div>
+          <div class="item-description description">
+            <p>Luxury renovated flat with elevator in a prime central location.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="item" data-element-id="110456789">
+        <div class="item-multimedia">
+          <a href="/inmueble/110456789/" class="item-link">
+            <img src="https://img4.idealista.com/blur/480_360_mq/0/id.pro.es.image.master/44/55/66/110456789.webp" alt="Flat in Extramurs">
+          </a>
+        </div>
+        <div class="item-info-container">
+          <a class="item-link" href="/inmueble/110456789/">
+            Flat in Extramurs
+          </a>
+          <span class="item-price h3-simulated">310.500&euro;</span>
+          <div class="item-detail-char">
+            <span class="item-detail">3 rooms</span>
+            <span class="item-detail">95 m&sup2;</span>
+            <span class="item-detail">Ground floor</span>
+          </div>
+          <div class="item-description description">
+            <p>Spacious family flat close to Jardín de Monforte, needs light updating.</p>
+          </div>
+        </div>
+      </article>
+
+      <article class="item" data-element-id="111222333">
+        <div class="item-multimedia">
+          <a href="/inmueble/111222333/" class="item-link">
+            <img src="https://img4.idealista.com/blur/480_360_mq/0/id.pro.es.image.master/77/88/99/111222333.webp" alt="Flat in Ruzafa">
+          </a>
+        </div>
+        <div class="item-info-container">
+          <a class="item-link" href="/inmueble/111222333/">
+            Flat in Ruzafa, near Mercado de Ruzafa
+          </a>
+          <span class="item-price h3-simulated">415.000&euro;</span>
+          <div class="item-detail-char">
+            <span class="item-detail">2 rooms</span>
+            <span class="item-detail">64 m&sup2;</span>
+            <span class="item-detail">3rd floor</span>
+          </div>
+          <div class="item-description description">
+            <p>Modern flat in the heart of Ruzafa's café and gallery district.</p>
+          </div>
+        </div>
+      </article>
+
+    </section>
+  </main>
+</body>
+</html>
