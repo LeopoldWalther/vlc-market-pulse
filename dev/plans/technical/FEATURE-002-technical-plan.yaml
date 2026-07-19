@@ -75,12 +75,12 @@ technical_plan:
     - id: "1.3"
       title: "URL builder and operation strategies"
       description: "OperationStrategy (Strategy pattern) with SaleStrategy/RentStrategy supplying the URL segment and operation label; IdealistaUrlBuilder (Builder) assembling the English Valencia search URL with ?pagina=N for the active strategy."
-      status: "planned"
       complexity: "low"
       estimated_hours: 1.5
       depends_on: ["1.1"]
       branch: "feature/idealista-web-scraper/1.3-urls-strategies"
       commit_message: "feat(scraper): add operation strategies and url builder"
+      status: "done"
       acceptance_criteria:
         - "✓ RED: test_urls asserts SaleStrategy builds .../en/venta-viviendas/valencia-valencia/?pagina=N and RentStrategy builds .../en/alquiler-viviendas/valencia-valencia/?pagina=N"
         - "✓ OperationStrategy is an ABC; adding an operation needs no orchestrator change (OCP)"
