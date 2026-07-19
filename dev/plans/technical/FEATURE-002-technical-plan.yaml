@@ -23,7 +23,7 @@ technical_plan:
     - id: "1.1"
       title: "Create scraper package skeleton, deps, and error hierarchy"
       description: "Create the OOP core package with importable namespace, the ScraperError hierarchy, runtime/dev dependencies, and a resolved import root (PYTHONPATH=src) so the CLI, pytest, and the Docker CMD all resolve etl.data_collection.scraper identically."
-      status: "planned"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []
