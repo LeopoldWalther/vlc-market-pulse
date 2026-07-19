@@ -203,3 +203,22 @@ class TestScrapeOrchestratorPagination:
         assert len(result) == 0
         assert repository.saved == []
         assert proxy_provider.rotations == 0
+
+    def test_max_pages_caps_pagination_even_with_more_listings(self) -> None:
+        fetcher = _FakeFetcher(["<html>1</html>", "<html>2</html>", "<html>3</html>"])
+        parser = _FakeParser([[_listing("1")], [_listing("2")], [_listing("3")]])
+        repository = _FakeRepository()
+        proxy_provider = _FakeProxyProvider()
+
+        orchestrator = ScrapeOrchestrator(
+            fetcher=fetcher,
+            parser=parser,
+            repository=repository,
+            proxy_provider=proxy_provider,
+            sleep_fn=lambda _: None,
+            random_fn=lambda lo, hi: 3.0,
+        )
+        result = orchestrator.scrape(SaleStrategy(), max_pages=2)
+
+        assert len(fetcher.urls) == 2
+        assert len(result) == 2

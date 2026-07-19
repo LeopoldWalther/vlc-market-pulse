@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 import random
 import time
-from typing import Callable, Protocol
+from typing import Callable, Optional, Protocol
 
 from .domain import ListingCollection
 from .proxies import ProxyProvider
@@ -86,13 +86,19 @@ class ScrapeOrchestrator:
         self._random_fn = random_fn
         self._delay_range = delay_range
 
-    def scrape(self, operation_strategy: OperationStrategy) -> ListingCollection:
+    def scrape(
+        self, operation_strategy: OperationStrategy, max_pages: Optional[int] = None
+    ) -> ListingCollection:
         """
         Scrape every page for *operation_strategy* until an empty page.
 
         Args:
             operation_strategy: :class:`~urls.SaleStrategy` or
                 :class:`~urls.RentStrategy` (or any future variant).
+            max_pages: Optional cap on the number of pages fetched,
+                regardless of whether later pages would have listings
+                (task 1.10: lets the CLI/notebook run a bounded smoke
+                test instead of forcing a full-inventory scrape).
 
         Returns:
             The union of all listings scraped across every page.
@@ -102,7 +108,7 @@ class ScrapeOrchestrator:
         all_listings = ListingCollection()
 
         page = 1
-        while True:
+        while max_pages is None or page <= max_pages:
             url = url_builder.build(page)
             logger.info("Fetching %s page %d: %s", operation, page, url)
 
