@@ -51,7 +51,7 @@ technical_plan:
     - id: "1.2"
       title: "Domain model: Listing and ListingCollection"
       description: "Encapsulated domain objects: Listing validates/normalises price and size, exposes read-only properties, serialises via to_dict() to camelCase keys matching the API elementList schema, and dedups on propertyCode. ListingCollection aggregates and produces the JSON envelope."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.1"]
