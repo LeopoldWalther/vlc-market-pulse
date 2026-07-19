@@ -265,7 +265,7 @@ technical_plan:
     - id: "1.11"
       title: "Local testing notebook (guided validation)"
       description: "src/notebooks/idealista_web_scraper.ipynb as a guided, cell-by-cell learning/testing surface: setup with NullProxyProvider + LocalListingRepository, fetch one page, parse + inspect as a DataFrame, full sale+rent run to data/s3/, then validate field coverage against an existing API data/s3/*.json. Each cell has a short markdown explanation."
-      status: "planned"
+      status: "done"
       complexity: "low"
       estimated_hours: 2
       depends_on: ["1.10"]
