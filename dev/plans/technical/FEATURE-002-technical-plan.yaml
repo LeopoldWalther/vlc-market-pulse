@@ -191,7 +191,7 @@ technical_plan:
     - id: "1.8"
       title: "Listing repository (S3 + Local)"
       description: "ListingRepository ABC (Repository) with S3ListingRepository (boto3 put_object) and LocalListingRepository (disk). Storage target is swappable via DI; the S3 key layout matches the bronze namespace."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["1.2"]
