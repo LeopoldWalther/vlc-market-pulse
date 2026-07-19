@@ -238,7 +238,7 @@ technical_plan:
     - id: "1.10"
       title: "Config, factory, CLI, and SCRAPER_ENABLED kill switch"
       description: "config.py reads env (S3_BUCKET, S3_PREFIX, SNS_TOPIC_ARN, PROXY_PROVIDER, PROXY_SECRET_NAME, AWS_REGION, SCRAPER_ENABLED); factory.py is the composition root building the object graph; __main__.py is the local CLI. SCRAPER_ENABLED is the operational kill switch (restores the prior review's mandatory safeguard)."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.9"]
