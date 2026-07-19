@@ -123,7 +123,7 @@ technical_plan:
     - id: "1.5"
       title: "Page fetcher with retry/backoff (Template Method)"
       description: "PageFetcher base orchestrates proxy selection -> request -> retry/backoff; CloudscraperFetcher implements the transport step with a realistic UA and headers. All Cloudflare/transport concerns stay inside fetcher.py so a later Playwright fetcher is a drop-in."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.4"]
