@@ -214,7 +214,7 @@ technical_plan:
     - id: "1.9"
       title: "ScrapeOrchestrator high-level policy (DI)"
       description: "ScrapeOrchestrator(fetcher, parser, repository, proxy_provider, url_builder) injected via constructor. scrape(operation_strategy) paginates until an empty/last page, parses each page into a ListingCollection, persists via the repository, rotates the proxy and sleeps random.uniform(2.0, 4.5) between pages. References only abstractions."
-      status: "planned"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.3", "1.5", "1.7", "1.8"]
