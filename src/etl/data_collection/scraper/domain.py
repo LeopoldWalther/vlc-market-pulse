@@ -201,6 +201,11 @@ class Listing:
         """``"sale"`` or ``"rent"``."""
         return self._operation
 
+    @property
+    def floor(self) -> Optional[str]:
+        """Floor label (e.g. ``"3"``, ``"bj"``), or ``None`` when unavailable."""
+        return self._floor
+
     def to_dict(self) -> Dict[str, Any]:
         """
         Serialise to the camelCase ``elementList`` schema used by the API collector.
