@@ -147,7 +147,7 @@ technical_plan:
     - id: "1.6"
       title: "Capture real HTML fixture"
       description: "Run the fetcher once against the live sale search page and freeze a real HTML snapshot (>= 3 listing cards) for deterministic, network-free parser tests."
-      status: "planned"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["1.5"]
