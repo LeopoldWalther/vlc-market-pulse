@@ -8,7 +8,7 @@ small, version-controlled, independently testable tasks.
 
 | ID | Title | Status | Branch | Effort | Priority | Owner |
 |----|-------|--------|--------|--------|----------|-------|
-| FEATURE-002 | Idealista web scraper — OOP service on AWS Fargate | 🔵 | `feature/idealista-web-scraper` | 6–8 d | High | @implementer |
+| FEATURE-002 | Idealista web scraper — OOP service on AWS Fargate | 🟡 | `feature/idealista-web-scraper` | 6–8 d | High | @implementer |
 | FEATURE-003 | Silver cleaning Lambda (bronze → cleaned listings) | 🟢 | `feature/silver-cleaning-lambda` | 1.5–2 d | High | @implementer |
 | FEATURE-004 | Gold aggregation Lambda (silver → aggregations JSON) | 🟢 | `feature/gold-aggregation-lambda` | 1–1.5 d | High | Unassigned |
 | FEATURE-005 | Static visualization web app (S3 + CloudFront) | 🟢 | `feature/static-visualization-webapp` | 1.5–2 d | Medium | Unassigned |
