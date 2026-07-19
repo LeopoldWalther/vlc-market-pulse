@@ -19,3 +19,9 @@ pandas-stubs>=2.0.0
 # Local test dependencies (provided by AWSSDKPandas-Python312 layer at runtime)
 pandas>=2.0.0
 pyarrow>=14.0.0
+
+# Idealista web scraper (FEATURE-002) — also pinned in
+# data_collection/scraper/requirements.txt for the Fargate image.
+cloudscraper>=1.2.71
+beautifulsoup4>=4.12.3
+lxml>=5.1.0

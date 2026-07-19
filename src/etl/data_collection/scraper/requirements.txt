@@ -1,0 +1,7 @@
+# Idealista web-scraper runtime dependencies (FEATURE-002).
+# Installed on top of ../requirements.txt (requests, boto3) for the
+# Fargate container image (Phase 2) and local development.
+
+cloudscraper>=1.2.71
+beautifulsoup4>=4.12.3
+lxml>=5.1.0
