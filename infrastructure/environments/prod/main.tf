@@ -111,12 +111,11 @@ module "pipeline_orchestrator" {
 }
 
 # ---------------------------------------------------------------------------
-# Prod frontend domain. vlc-report.leopoldwalther.com is free since dev moved
-# to vlc-report-dev in FEATURE-005. The wildcard ACM cert (*.leopoldwalther.com)
-# covers this name (one subdomain level).
+# Prod frontend domain. The wildcard ACM cert (*.leopoldwalther.com) covers
+# this name (one subdomain level).
 # ---------------------------------------------------------------------------
 locals {
-  frontend_domain = "vlc-report.leopoldwalther.com"
+  frontend_domain = "vlc-market-pulse.leopoldwalther.com"
 }
 
 # ---------------------------------------------------------------------------

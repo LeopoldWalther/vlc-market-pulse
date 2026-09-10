@@ -56,7 +56,7 @@ output "cloudfront_url" {
 }
 
 output "custom_domain_url" {
-  description = "Custom domain URL of the prod frontend (vlc-report.leopoldwalther.com)."
+  description = "Custom domain URL of the prod frontend (vlc-market-pulse.leopoldwalther.com)."
   value       = "https://${local.frontend_domain}"
 }
 

@@ -5,10 +5,10 @@ module "listings_bucket" {
 }
 
 # Frontend custom domain. dev uses its own subdomain so it never collides with
-# the prod deployment (which will claim vlc-report.leopoldwalther.com via
-# FEATURE-006). The wildcard ACM cert (*.leopoldwalther.com) covers this name.
+# the prod deployment (which claims vlc-market-pulse.leopoldwalther.com). The
+# wildcard ACM cert (*.leopoldwalther.com) covers this name.
 locals {
-  frontend_domain = "vlc-report-dev.leopoldwalther.com"
+  frontend_domain = "vlc-market-pulse-dev.leopoldwalther.com"
 }
 
 module "idealista_secrets" {
