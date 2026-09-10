@@ -7,5 +7,5 @@ variable "github_org" {
 variable "github_repo" {
   type        = string
   description = "GitHub repository name (without the org prefix)."
-  default     = "vlc-real-estate-analytics"
+  default     = "vlc-market-pulse"
 }

@@ -1,10 +1,48 @@
-# VLC Real Estate Analytics
+# VLC Market Pulse
 
-An automated real estate data collection and processing platform for Valencia, Spain, using a medallion architecture on AWS Lambda and Terraform.
+**Automated, serverless price-trend intelligence for the Valencia real-estate market — built to run itself for the cost of a coffee per month.**
 
-## Project Overview
+> A production-shaped data platform that has quietly collected a clean weekly price history of the Valencia housing market **since 2023**, and turns it into a live, public trend dashboard. Part data-engineering reference implementation, part working market-research product.
 
-This project collects, cleans, and stores real estate listing data from the Idealista API for market analysis and trend tracking in the Valencia (VLC) region. Data is collected weekly via scheduled Lambda functions, stored as raw JSON in S3 (bronze layer), and automatically cleaned into Parquet (silver layer) for downstream analytics.
+---
+
+## Case Study
+
+### The Problem
+
+The Valencia property market is opaque. Asking prices drift week to week, listings appear and vanish, and there is **no free, reliable source of truth for how price-per-m² is actually trending** in specific neighbourhoods over time. Anyone trying to answer *"is this district getting more expensive, and is now a good time to buy or rent?"* is left manually eyeballing portals — slow, inconsistent, and impossible to do retroactively once a listing is gone.
+
+### The Solution
+
+An end-to-end, fully automated ETL pipeline that:
+- pulls sale **and** rental listings from the official Idealista API on a fixed weekly schedule,
+- refines them through a **Bronze → Silver → Gold medallion architecture** (raw JSON → cleaned Parquet → analytics-ready aggregations),
+- and publishes the result to a **live static dashboard** showing €/m² trends for Valencia's key districts over multiple years.
+
+No servers to babysit, no manual steps — the whole thing wakes up every Sunday, updates itself, and goes back to sleep.
+
+### The Business Impact
+
+- **Days → zero.** What used to be manual, repeated data collection is now a hands-off weekly snapshot with a multi-year history no manual process could reconstruct.
+- **Better timing decisions.** Long-run €/m² trends per district turn gut feeling into evidence for buy/rent/invest decisions.
+- **~€3/month, near-zero maintenance.** A serverless-first design means the platform costs less than a single coffee to run and needs no ongoing operations.
+
+---
+
+## Sister Project — `vlc-price-estimator`
+
+This repository is the **lightweight, historical-trends** half of a two-part portfolio:
+
+| | **VLC Market Pulse** (this repo) | **VLC Price Estimator** (sibling) |
+|---|---|---|
+| Data source | Official Idealista **API** (quota-limited, curated) | **Web scraping** (full Comunidad Valenciana inventory) |
+| Compute | Serverless (Lambda) — short, cheap jobs | Long-running jobs (ECS / Fargate) |
+| Focus | Multi-year **price-trend time series** | **Price estimation & feature analysis** over a large dataset |
+| Demonstrates | Cost-aware cloud architecture · data-engineering discipline | Scalable pipelines · data science / ML |
+
+Together they show the same market from two angles: a **cheap, disciplined trend engine** and a **scalable intelligence engine**.
+
+---
 
 ### Key Features
 
@@ -52,6 +90,17 @@ work. It is intentionally small in surface area but production-shaped end to end
 - **State Management**: S3 with native S3 locking
 
 ## Architecture
+
+### Architecture Decisions & Trade-offs
+
+| Decision | Why | Trade-off accepted |
+|---|---|---|
+| **Serverless (Lambda) over always-on servers** | Weekly, bursty workload — paying for idle compute makes no sense. Scales to zero, ~€3/month total. | Cold starts and the 15-min execution ceiling; unsuitable for long crawls (that is the sibling project's ECS/Fargate job). |
+| **Medallion architecture (Bronze → Silver → Gold)** | Clean separation of concerns: immutable raw history, reproducible cleaning, and a stable analytics contract. Any layer can be rebuilt from the one below. | More moving parts and S3 round-trips than a single "clean-on-read" script. |
+| **S3 as the data store (no database)** | Append-only, cheap, durable, and a perfect fit for immutable historical snapshots + Parquet analytics. | No ad-hoc SQL/indexing; querying means reading files (fine at this data volume). |
+| **Static S3/CloudFront dashboard (no backend API)** | The Gold layer is pre-aggregated JSON, so the frontend is just static files — nothing to run, nothing to attack, near-zero cost. | Data is as fresh as the last weekly run, not real-time (perfectly acceptable for trend analysis). |
+| **Terraform IaC across isolated dev/prod** | Reproducible, reviewable infrastructure; no click-ops drift. | Higher upfront authoring effort than console setup. |
+| **Official API over scraping (in this repo)** | Reliable, ToS-compliant, low-maintenance — ideal for a disciplined long-run time series. | Hard monthly listing quota → small, curated dataset (the scraping sibling lifts this ceiling). |
 
 ### Data Flow
 
@@ -212,8 +261,8 @@ src/
 
 ```bash
 # Clone the repository
-git clone https://github.com/LeopoldWalther/vlc-real-estate-analytics.git
-cd vlc-real-estate-analytics
+git clone https://github.com/LeopoldWalther/vlc-market-pulse.git
+cd vlc-market-pulse
 
 # Create Python virtual environment
 python3 -m venv .venv
@@ -414,4 +463,4 @@ MIT License — see [LICENSE](LICENSE).
 
 ---
 
-**Last Updated**: 2026-06-05
+**Last Updated**: 2026-09-10
