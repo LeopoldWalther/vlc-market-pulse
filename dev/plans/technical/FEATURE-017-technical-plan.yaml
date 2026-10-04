@@ -1,0 +1,269 @@
+technical_plan:
+  metadata:
+    for_feature: "FEATURE-017"
+    title: "Subdomain-scoped certificates; hand leopoldwalther.com ownership to the website repository"
+    created_by: "@reviewer"
+    created_at: "2026-10-04"
+    version: "1.0"
+    total_tasks: 7
+    estimated_hours: 4.25
+    risk_level: "medium"
+    critical_path: ["17.1", "17.2", "17.3", "17.4", "17.5", "17.6", "17.7"]
+    reviewed_plan: "dev/reviews/REVIEW-FEATURE-017.md"
+
+  validation:
+    required_checks:
+      - "terraform-validate"
+      - "workflow-consistency"
+    min_coverage: "n/a (infrastructure only; no application code)"
+
+  tasks:
+    - id: "17.1"
+      title: "dev: own certificate for vlc-market-pulse-dev.leopoldwalther.com"
+      description: >
+        In environments/dev/providers.tf add an aws.us_east_1 provider alias (region us-east-1,
+        same comment as shared/dns/providers.tf). In environments/dev/main.tf add
+        data "aws_route53_zone" "root" (name "leopoldwalther.com", private_zone false),
+        aws_acm_certificate "frontend" (provider aws.us_east_1, domain_name local.frontend_domain,
+        no SANs, DNS validation, lifecycle create_before_destroy), aws_route53_record
+        "frontend_cert_validation" (for_each over domain_validation_options, ttl 60), and
+        aws_acm_certificate_validation "frontend" (provider aws.us_east_1). Wire
+        module.frontend.certificate_arn to aws_acm_certificate_validation.frontend.certificate_arn
+        (review M1) and both alias records' zone_id to data.aws_route53_zone.root.zone_id. Delete
+        data "terraform_remote_state" "dns" and update the stale comments at main.tf:9 and the
+        remote-state/frontend comment block (review L3). Code only; the apply is 17.2.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: []
+      branch: "feature/subdomain-scoped-certificates/17.1-dev-certificate"
+      commit_message: "feat(infra): issue subdomain-scoped ACM certificate in dev"
+      acceptance_criteria:
+        - "RED: before the change, `terraform plan` in environments/dev shows the distribution using the wildcard ARN from remote state"
+        - "GREEN: `terraform plan` in environments/dev creates exactly 1 aws_acm_certificate, 1 aws_route53_record (name ends in .vlc-market-pulse-dev.leopoldwalther.com, not _dcd1388…), 1 aws_acm_certificate_validation"
+        - "GREEN: the plan updates module.frontend.aws_cloudfront_distribution in place (viewer_certificate only); no replace (-/+)"
+        - "GREEN: aws_route53_record.frontend_a and frontend_aaaa show no changes"
+        - "GREEN: module.frontend.certificate_arn references aws_acm_certificate_validation.frontend.certificate_arn, not aws_acm_certificate.frontend.arn"
+        - "GREEN: grep for terraform_remote_state and 'wildcard' in environments/dev returns nothing"
+        - "GREEN: terraform fmt -check -recursive and terraform validate pass"
+      allowed_files:
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/providers.tf"
+      forbidden_files:
+        - "infrastructure/environments/prod/**"
+        - "infrastructure/modules/**"
+        - "infrastructure/shared/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/providers.tf"
+
+    - id: "17.2"
+      title: "dev: apply locally and verify the served certificate"
+      description: >
+        Pre-check: `dig CAA leopoldwalther.com +short` is empty or contains `issue "amazon.com"`
+        (review M2); stop otherwise. Record the full wildcard certificate ARN
+        (`aws acm list-certificates --region us-east-1`) in the plan's progress log as the rollback
+        target (review L2). Apply environments/dev locally (CI cannot plan these stacks, review M4).
+        Wait with `aws cloudfront wait distribution-deployed --id <id>` (dev ID from
+        `terraform output -raw frontend_distribution_id`), then run the openssl check.
+        Rollback: set certificate_arn to the recorded wildcard ARN literally and apply.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.5
+      depends_on: ["17.1"]
+      branch: "feature/subdomain-scoped-certificates/17.2-dev-apply"
+      commit_message: "docs(plan): record FEATURE-017 dev apply and certificate check"
+      acceptance_criteria:
+        - "GIVEN the applied dev stack WHEN `openssl s_client -connect vlc-market-pulse-dev.leopoldwalther.com:443 -servername vlc-market-pulse-dev.leopoldwalther.com </dev/null | openssl x509 -noout -subject -ext subjectAltName` runs THEN subject and SAN list only vlc-market-pulse-dev.leopoldwalther.com"
+        - "The dev dashboard loads over HTTPS without a browser warning"
+        - "The progress log records the full wildcard ARN, the new certificate ARN, and the CAA pre-check result"
+      allowed_files:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+      forbidden_files:
+        - "infrastructure/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+
+    - id: "17.3"
+      title: "prod: own certificate for vlc-market-pulse.leopoldwalther.com"
+      description: >
+        Mirror 17.1 exactly in environments/prod (providers.tf alias; main.tf zone data source,
+        certificate, validation record, validation waiter, module wiring via the validation
+        resource's ARN, alias records via the data-source zone ID). Delete
+        data "terraform_remote_state" "dns" and update the stale comments at main.tf:114 and the
+        remote-state/frontend comment block.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: ["17.2"]
+      branch: "feature/subdomain-scoped-certificates/17.3-prod-certificate"
+      commit_message: "feat(infra): issue subdomain-scoped ACM certificate in prod"
+      acceptance_criteria:
+        - "GREEN: `terraform plan` in environments/prod creates exactly 1 certificate, 1 validation record (under .vlc-market-pulse.leopoldwalther.com), 1 validation, and updates the distribution in place (viewer_certificate only)"
+        - "GREEN: aws_route53_record.frontend_a and frontend_aaaa show no changes"
+        - "GREEN: module.frontend.certificate_arn references aws_acm_certificate_validation.frontend.certificate_arn"
+        - "GREEN: `diff` of the certificate blocks between dev/main.tf and prod/main.tf differs only in comments"
+        - "GREEN: terraform fmt -check -recursive and terraform validate pass"
+      allowed_files:
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/providers.tf"
+      forbidden_files:
+        - "infrastructure/environments/dev/**"
+        - "infrastructure/modules/**"
+        - "infrastructure/shared/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/providers.tf"
+
+    - id: "17.4"
+      title: "prod: apply locally and verify the served certificate"
+      description: >
+        Same procedure as 17.2 for prod: CAA pre-check, local apply, wait for the distribution
+        (ID from `terraform output -raw frontend_distribution_id`) to deploy, openssl
+        check. Rollback as in 17.2.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.5
+      depends_on: ["17.3"]
+      branch: "feature/subdomain-scoped-certificates/17.4-prod-apply"
+      commit_message: "docs(plan): record FEATURE-017 prod apply and certificate check"
+      acceptance_criteria:
+        - "GIVEN the applied prod stack WHEN the openssl check runs against vlc-market-pulse.leopoldwalther.com THEN subject and SAN list only vlc-market-pulse.leopoldwalther.com"
+        - "The prod dashboard loads over HTTPS without a browser warning"
+        - "The progress log records the new prod certificate ARN"
+      allowed_files:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+      forbidden_files:
+        - "infrastructure/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+
+    - id: "17.5"
+      title: "Retire the shared/dns stack without deleting the shared validation record"
+      description: >
+        Gates, in order: (1) `aws acm describe-certificate --region us-east-1 --certificate-arn
+        <wildcard> --query Certificate.InUseBy` returns []; (2) the website repository's
+        `terraform state list` contains the _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com
+        record (review M3). If (2) fails, stop and hand over via `terraform import` in the website
+        repository first. Then in infrastructure/shared/dns run
+        `terraform state rm 'aws_route53_record.cert_validation["*.leopoldwalther.com"]' 'aws_route53_record.cert_validation["leopoldwalther.com"]'`
+        followed by `terraform plan -destroy`, review it, and `terraform destroy`. The directory
+        stays until 17.6 because destroy needs its config.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 0.5
+      depends_on: ["17.4"]
+      branch: "feature/subdomain-scoped-certificates/17.5-retire-shared-dns"
+      commit_message: "docs(plan): record shared/dns destroy and validation-record handover"
+      acceptance_criteria:
+        - "GIVEN both gates pass WHEN `terraform plan -destroy` runs THEN it destroys exactly 2 resources: aws_acm_certificate.wildcard and aws_acm_certificate_validation.wildcard"
+        - "AFTER destroy, `dig +short CNAME _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com` still returns the acm-validations.aws target"
+        - "AFTER destroy, `aws acm list-certificates --region us-east-1` no longer lists *.leopoldwalther.com"
+        - "The progress log contains the InUseBy output, the website state-list line, the state rm output and the dig result"
+      allowed_files:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+      forbidden_files:
+        - "infrastructure/**"
+      can_run_parallel_with: []
+      reversible: false
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+
+    - id: "17.6"
+      title: "Delete infrastructure/shared/dns and its state object"
+      description: >
+        Delete infrastructure/shared/dns/. Delete s3://vlc-real-estate-analytics-tf-state/vlc-state/shared/dns/terraform.tfstate
+        (and a leftover .tflock if present); the bucket is versioned, so noncurrent versions remain
+        as a backup. shared/dns is not in the terraform-validate.yml matrix — no workflow change.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.25
+      depends_on: ["17.5"]
+      branch: "feature/subdomain-scoped-certificates/17.6-delete-shared-dns"
+      commit_message: "chore(infra): remove retired shared/dns stack"
+      acceptance_criteria:
+        - "infrastructure/shared/dns/ no longer exists"
+        - "`aws s3 ls s3://vlc-real-estate-analytics-tf-state/vlc-state/shared/dns/` lists no current objects"
+        - "`git grep shared/dns -- infrastructure .github` returns nothing"
+        - "terraform fmt -check -recursive passes in infrastructure/"
+      allowed_files:
+        - "infrastructure/shared/dns/**"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - "infrastructure/shared/github-oidc/**"
+      can_run_parallel_with: []
+      reversible: false
+      files_to_create: []
+      files_to_modify: []
+
+    - id: "17.7"
+      title: "Documentation: this repository manages only its two subdomains"
+      description: >
+        Update documentation/FRONTEND_LAYER.md (ACM section around line 285),
+        documentation/PROD_PROMOTION_RUNBOOK.md, README.md, and the certificate_arn description in
+        infrastructure/modules/frontend/variables.tf. State that leopoldwalther.com (zone, apex, CAA,
+        apex validation record) is owned by LeopoldWalther/leopoldwalther-website, that each
+        environment issues its own us-east-1 certificate, and that any apex CAA must allow
+        amazon.com. Mark the feature complete in the plan file and dev/plans/README.md, and tick the
+        success criteria.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: ["17.6"]
+      branch: "feature/subdomain-scoped-certificates/17.7-docs"
+      commit_message: "docs: document subdomain-scoped certificates and domain ownership"
+      acceptance_criteria:
+        - "`git grep -n 'wildcard\\|shared/dns\\|\\*\\.leopoldwalther' -- documentation README.md infrastructure` returns no stale hits"
+        - "FRONTEND_LAYER.md names the website repository as owner of leopoldwalther.com"
+        - "terraform fmt -check -recursive and terraform validate pass (variables.tf description change)"
+        - "python dev/tools/validate_workflow.py passes"
+      allowed_files:
+        - "documentation/FRONTEND_LAYER.md"
+        - "documentation/PROD_PROMOTION_RUNBOOK.md"
+        - "README.md"
+        - "infrastructure/modules/frontend/variables.tf"
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+        - "dev/plans/README.md"
+        - "dev/plans/technical/FEATURE-017-technical-plan.yaml"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "src/**"
+        - "frontend/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "documentation/FRONTEND_LAYER.md"
+        - "documentation/PROD_PROMOTION_RUNBOOK.md"
+        - "README.md"
+        - "infrastructure/modules/frontend/variables.tf"
+        - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
+        - "dev/plans/README.md"
+
+  git_workflow:
+    branch_root: "feature/subdomain-scoped-certificates"
+    commit_style: "One commit per task using the task commit_message"
+    merge_strategy: "Strictly sequential: dev (17.1-17.2) before prod (17.3-17.4) before retirement (17.5-17.6). Merge 17.1/17.3 to main before applying so main always matches deployed state."
+    pre_pr_checks:
+      - "terraform-validate"
+      - "workflow-consistency"
+
+  notes:
+    - "All applies are local. The github-actions-deploy role cannot plan the environment stacks today (review M4); do not add IAM grants in this feature."
+    - "17.5 and 17.6 are irreversible. 17.5 requires the website repository to own _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com first."
+    - "Website FEATURE-004 phase 3 (dropping prevent_destroy on its apex validation record) is unblocked after 17.5."
+    - "Do not touch stray files infrastructure/environments/dev/tfplan-health-fix and infrastructure/environments/prod/response.json."
