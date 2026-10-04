@@ -70,7 +70,7 @@ technical_plan:
         Wait with `aws cloudfront wait distribution-deployed --id <id>` (dev ID from
         `terraform output -raw frontend_distribution_id`), then run the openssl check.
         Rollback: set certificate_arn to the recorded wildcard ARN literally and apply.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.5
       depends_on: ["17.1"]
