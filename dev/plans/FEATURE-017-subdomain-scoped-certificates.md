@@ -1,7 +1,7 @@
 # FEATURE-017 — Subdomain-scoped certificates; hand domain ownership to the website repository
 
-**Status:** 🔵 Planned · **Effort:** S (~5h) · **Priority:** Medium
-**Branch root:** `feature/subdomain-scoped-certificates` · **Created:** 2026-10-04 · **Updated:** 2026-10-04
+**Status:** 🟡 In progress · **Effort:** S (~5h) · **Priority:** Medium
+**Branch root:** `feature/subdomain-scoped-certificates` · **Created:** 2026-10-04 · **Updated:** 2026-10-05
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-017.md`).
 > Implemented by `@implementer` from `dev/plans/technical/FEATURE-017-technical-plan.yaml`.

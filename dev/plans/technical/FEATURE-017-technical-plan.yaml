@@ -32,7 +32,7 @@ technical_plan:
         (review M1) and both alias records' zone_id to data.aws_route53_zone.root.zone_id. Delete
         data "terraform_remote_state" "dns" and update the stale comments at main.tf:9 and the
         remote-state/frontend comment block (review L3). Code only; the apply is 17.2.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []
