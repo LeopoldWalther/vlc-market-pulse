@@ -98,7 +98,7 @@ technical_plan:
         resource's ARN, alias records via the data-source zone ID). Delete
         data "terraform_remote_state" "dns" and update the stale comments at main.tf:114 and the
         remote-state/frontend comment block.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["17.2"]
