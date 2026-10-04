@@ -111,32 +111,67 @@ module "pipeline_orchestrator" {
 }
 
 # ---------------------------------------------------------------------------
-# Prod frontend domain. The wildcard ACM cert (*.leopoldwalther.com) covers
-# this name (one subdomain level).
+# Prod frontend domain. The certificate below covers this name only.
 # ---------------------------------------------------------------------------
 locals {
   frontend_domain = "vlc-market-pulse.leopoldwalther.com"
 }
 
 # ---------------------------------------------------------------------------
-# Shared DNS remote state — reads zone_id + certificate_arn from the
-# infrastructure/shared/dns stack. That stack must be applied ONCE before
-# this environment is planned or applied.
+# Hosted zone — read-only lookup. leopoldwalther.com (zone, apex, CAA and the
+# apex validation record) is owned by the leopoldwalther-website repository;
+# this stack only writes records under its own subdomain.
 # ---------------------------------------------------------------------------
-data "terraform_remote_state" "dns" {
-  backend = "s3"
-  config = {
-    bucket       = "vlc-real-estate-analytics-tf-state"
-    key          = "vlc-state/shared/dns/terraform.tfstate"
-    region       = "eu-central-1"
-    encrypt      = true
-    use_lockfile = true
+data "aws_route53_zone" "root" {
+  name         = "leopoldwalther.com"
+  private_zone = false
+}
+
+# ---------------------------------------------------------------------------
+# ACM certificate for the prod frontend domain only — issued in us-east-1
+# (CloudFront requirement). create_before_destroy keeps the distribution on a
+# valid certificate during any rotation.
+# ---------------------------------------------------------------------------
+resource "aws_acm_certificate" "frontend" {
+  provider = aws.us_east_1
+
+  domain_name       = local.frontend_domain
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
   }
+}
+
+resource "aws_route53_record" "frontend_cert_validation" {
+  for_each = {
+    for dvo in aws_acm_certificate.frontend.domain_validation_options :
+    dvo.domain_name => {
+      name   = dvo.resource_record_name
+      type   = dvo.resource_record_type
+      record = dvo.resource_record_value
+    }
+  }
+
+  zone_id = data.aws_route53_zone.root.zone_id
+  name    = each.value.name
+  type    = each.value.type
+  records = [each.value.record]
+  ttl     = 60
+}
+
+# Waits until ACM reports the certificate as issued. CloudFront consumes the
+# ARN from this resource, so the distribution never switches to a certificate
+# that is still pending validation.
+resource "aws_acm_certificate_validation" "frontend" {
+  provider = aws.us_east_1
+
+  certificate_arn         = aws_acm_certificate.frontend.arn
+  validation_record_fqdns = [for r in aws_route53_record.frontend_cert_validation : r.fqdn]
 }
 
 # ---------------------------------------------------------------------------
 # Frontend module — private S3 asset bucket + CloudFront distribution.
-# Certificate and zone come from the shared/dns remote state.
 # ---------------------------------------------------------------------------
 module "frontend" {
   source = "../../modules/frontend"
@@ -145,7 +180,7 @@ module "frontend" {
   listings_bucket_name            = module.listings_bucket.listings_bucket_name
   listings_bucket_arn             = module.listings_bucket.listings_bucket_arn
   listings_bucket_regional_domain = module.listings_bucket.listings_bucket_regional_domain
-  certificate_arn                 = data.terraform_remote_state.dns.outputs.certificate_arn
+  certificate_arn                 = aws_acm_certificate_validation.frontend.certificate_arn
   aliases                         = [local.frontend_domain]
 }
 
@@ -154,7 +189,7 @@ module "frontend" {
 # pointing at the CloudFront distribution in the existing hosted zone.
 # ---------------------------------------------------------------------------
 resource "aws_route53_record" "frontend_a" {
-  zone_id = data.terraform_remote_state.dns.outputs.zone_id
+  zone_id = data.aws_route53_zone.root.zone_id
   name    = local.frontend_domain
   type    = "A"
 
@@ -166,7 +201,7 @@ resource "aws_route53_record" "frontend_a" {
 }
 
 resource "aws_route53_record" "frontend_aaaa" {
-  zone_id = data.terraform_remote_state.dns.outputs.zone_id
+  zone_id = data.aws_route53_zone.root.zone_id
   name    = local.frontend_domain
   type    = "AAAA"
 
