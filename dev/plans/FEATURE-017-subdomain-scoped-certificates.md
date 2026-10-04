@@ -142,3 +142,10 @@ change.
   corrected the CAA claim, resolved the CI-role risk (applies stay local), and reworded one success
   criterion. The technical plan has 7 tasks (~4.25 h). Before 17.5, the website repository must own
   `_dcd1388…`.
+- **2026-10-05** — 17.1/17.2 done (dev). CAA pre-check: no CAA record on the apex (authoritative
+  NS). Rollback target (wildcard): `arn:aws:acm:us-east-1:063096286047:certificate/117fab20-862b-4f89-9737-39e1f6b7e3ec`.
+  New dev certificate: `arn:aws:acm:us-east-1:063096286047:certificate/e2228941-6c76-49eb-9d98-9d4068ba7568`,
+  validated through `_07d8ace9c4fea98b552e683b1e4dccd8.vlc-market-pulse-dev.leopoldwalther.com`.
+  Applied locally: 3 added, 1 changed (distribution `E2N85NF7XDZF9F`, in place). After
+  `distribution-deployed`, `openssl` shows subject and SAN `vlc-market-pulse-dev.leopoldwalther.com`
+  only (valid to 2027-04-19); `curl` returns 200 with a verified chain.
