@@ -74,6 +74,8 @@ terraform init
 terraform apply -var-file="secrets.tfvars"
 ```
 
+Each environment issues its own ACM certificate for its subdomain. The `leopoldwalther.com` domain itself is managed by the [`leopoldwalther-website`](https://github.com/LeopoldWalther/leopoldwalther-website) repository; this repository only writes records under `vlc-market-pulse.leopoldwalther.com` and `vlc-market-pulse-dev.leopoldwalther.com`.
+
 Dev runs the collector in `test_mode` (1 page per operation) to stay within API limits; prod runs full collection. Per-layer detail lives in [DATA_COLLECTION_LAYER.md](documentation/DATA_COLLECTION_LAYER.md), [DATA_PROCESSING_LAYER.md](documentation/DATA_PROCESSING_LAYER.md), and [PIPELINE_HEALTH_LAYER.md](documentation/PIPELINE_HEALTH_LAYER.md).
 
 ## License

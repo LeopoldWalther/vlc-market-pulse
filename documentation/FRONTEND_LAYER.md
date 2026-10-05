@@ -282,10 +282,17 @@ The frontend is provisioned by `infrastructure/modules/frontend/`:
   - Origin 2: listings bucket `gold/aggregations/*` path (1 h TTL so chart data refreshes within
     one collection cycle).
 - **Route 53 A + AAAA** — alias records pointing the custom domain at CloudFront.
-- **ACM certificate** — wildcard `*.leopoldwalther.com` (us-east-1, CloudFront requirement);
-  sourced from the shared `infrastructure/shared/dns` remote state.
-- **Custom domains** — `vlc-report-dev.leopoldwalther.com` (dev) · `vlc-report.leopoldwalther.com`
-  (prod, FEATURE-006).
+- **ACM certificate** — one per environment, covering only that environment's domain (us-east-1,
+  CloudFront requirement). Each environment stack owns its certificate, its DNS validation record,
+  and an `aws_acm_certificate_validation` waiter. The distribution consumes the waiter's ARN, so it
+  never switches to a certificate that is still pending validation (FEATURE-017).
+- **Custom domains** — `vlc-market-pulse-dev.leopoldwalther.com` (dev) ·
+  `vlc-market-pulse.leopoldwalther.com` (prod).
+- **Domain ownership** — `leopoldwalther.com` (hosted zone, apex, CAA, and apex validation records)
+  belongs to the [`leopoldwalther-website`](https://github.com/LeopoldWalther/leopoldwalther-website)
+  repository. This repository only looks the zone up read-only and writes records under its two
+  subdomains. The apex CAA record governs these subdomains too, so it must keep allowing
+  `amazon.com`; otherwise ACM can't renew these certificates.
 
 ## Deploy Workflow
 

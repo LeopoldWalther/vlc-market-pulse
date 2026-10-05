@@ -20,12 +20,12 @@ variable "listings_bucket_regional_domain" {
 
 variable "certificate_arn" {
   type        = string
-  description = "ARN of the ACM certificate for the custom domain aliases. Must be in us-east-1 (CloudFront requirement). Provided by the shared/dns stack via terraform_remote_state."
+  description = "ARN of the ACM certificate for the custom domain aliases. Must be in us-east-1 (CloudFront requirement). Issued per environment for that environment's domain only; pass the aws_acm_certificate_validation ARN so the distribution waits for validation."
 }
 
 variable "aliases" {
   type        = list(string)
-  description = "Custom domain aliases for the CloudFront distribution (e.g. [\"vlc-report.leopoldwalther.com\"])."
+  description = "Custom domain aliases for the CloudFront distribution (e.g. [\"vlc-market-pulse.leopoldwalther.com\"])."
   default     = []
 }
 

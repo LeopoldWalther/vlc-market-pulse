@@ -124,7 +124,7 @@ aws cloudfront create-invalidation \
 
 ## Step 6 — Smoke test
 
-Open https://vlc-report.leopoldwalther.com and verify:
+Open https://vlc-market-pulse.leopoldwalther.com and verify:
 
 - All eight charts render with data.
 - The population toggle appears and switches between "All listings" and the filtered population.
@@ -135,6 +135,9 @@ Open https://vlc-report.leopoldwalther.com and verify:
 
 - The prod `terraform apply` is a **gated, manual step** — do not automate it. Review
   `terraform plan` output before applying.
+- Prod issues its own ACM certificate for `vlc-market-pulse.leopoldwalther.com` (us-east-1). No
+  shared DNS stack has to be applied first. The `leopoldwalther.com` zone is owned by the
+  `leopoldwalther-website` repository, so never create apex or zone-wide records here.
 - If FEATURE-007 (Step Functions orchestration) has already landed, **do not** wire the per-Lambda
   EventBridge crons into prod. Wire the `pipeline_orchestrator` state machine instead and set
   `create_schedule = false` on the bronze/silver/gold modules.
