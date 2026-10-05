@@ -22,7 +22,7 @@ small, version-controlled, independently testable tasks.
 | FEATURE-013 | Pipeline Health tab — detailed views & history (Medallion diagram, 4 KPI history charts, threshold captions) | 🟡 | `feature/pipeline-health-detail-views` | L (~35 h) | Medium | @implementer |
 | FEATURE-014 | Dashboard UX refinements: health thresholds, trend counts, population dropdown, footer cleanup, Data Basis shared filter-bar | 🟡 | `feature/dashboard-ux-refinements` | M–L (~22.5 h) | Medium | @implementer |
 | FEATURE-016 | Data Basis: district/neighbourhood dimensions + population split for the remaining 4 charts (follow-up to FEATURE-014, split by @reviewer) | 🔵 | `feature/data-basis-dimensioned-filters` | M (~11.5 h, pending own review) | Medium | Unassigned |
-| FEATURE-017 | Subdomain-scoped certificates; hand `leopoldwalther.com` ownership to the website repository | 🟡 | `feature/subdomain-scoped-certificates` | S (~4.25 h) | Medium | @implementer |
+| FEATURE-017 | Subdomain-scoped certificates; hand `leopoldwalther.com` ownership to the website repository | 🟢 | `feature/subdomain-scoped-certificates` | S (~4.25 h) | Medium | @implementer |
 
 **Status:** 🔵 planned · 🟡 in progress · 🟢 complete · 🔴 blocked
 

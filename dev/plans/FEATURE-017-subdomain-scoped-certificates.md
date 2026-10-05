@@ -1,6 +1,6 @@
 # FEATURE-017 — Subdomain-scoped certificates; hand domain ownership to the website repository
 
-**Status:** 🟡 In progress · **Effort:** S (~5h) · **Priority:** Medium
+**Status:** 🟢 Complete · **Effort:** S (~5h) · **Priority:** Medium
 **Branch root:** `feature/subdomain-scoped-certificates` · **Created:** 2026-10-04 · **Updated:** 2026-10-05
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-017.md`).
@@ -47,7 +47,7 @@ to `LeopoldWalther/leopoldwalther-website` (its FEATURE-004).
 
 ### Phase 1 — Per-environment certificate (dev first)
 
-- [ ] **Validation-first.** In `environments/dev`, add an `aws.us_east_1` provider alias, a
+- [x] **Validation-first.** In `environments/dev`, add an `aws.us_east_1` provider alias, a
       `data "aws_route53_zone"` lookup, and an `aws_acm_certificate` for `local.frontend_domain` only
       (DNS validation, `create_before_destroy`), its validation record, and
       `aws_acm_certificate_validation`. Pass that certificate's ARN to `module.frontend` and use the
@@ -55,26 +55,27 @@ to `LeopoldWalther/leopoldwalther-website` (its FEATURE-004).
       Observable outcome: `terraform plan` creates one certificate, one validation record (a name that
       is *not* `_dcd1388…`), one validation, and updates the distribution's `viewer_certificate` in
       place. No replace of the distribution, no change to the A/AAAA records.
-- [ ] **Validation-first, after apply.** `openssl s_client -connect vlc-market-pulse-dev.leopoldwalther.com:443 -servername vlc-market-pulse-dev.leopoldwalther.com </dev/null | openssl x509 -noout -subject -ext subjectAltName`
+- [x] **Validation-first, after apply.** `openssl s_client -connect vlc-market-pulse-dev.leopoldwalther.com:443 -servername vlc-market-pulse-dev.leopoldwalther.com </dev/null | openssl x509 -noout -subject -ext subjectAltName`
       shows only `vlc-market-pulse-dev.leopoldwalther.com`.
-- [ ] **Validation-first.** Same change in `environments/prod`, applied and verified the same way.
+- [x] **Validation-first.** Same change in `environments/prod`, applied and verified the same way.
 
 ### Phase 2 — Retire `infrastructure/shared/dns`
 
-- [ ] **Validation-first.** Confirm with `aws acm describe-certificate` that the wildcard
+- [x] **Validation-first.** Confirm with `aws acm describe-certificate` that the wildcard
       certificate's `InUseBy` is empty.
-- [ ] **Validation-first.** Remove both validation-record instances from state **without deleting
+- [x] *(superseded by technical plan v1.1: deleted together with the stack, see progress log)*
+      **Validation-first.** Remove both validation-record instances from state **without deleting
       the record**, because the website certificate validates through the same record:
       `terraform state rm 'aws_route53_record.cert_validation["*.leopoldwalther.com"]' 'aws_route53_record.cert_validation["leopoldwalther.com"]'`.
       Then `terraform destroy` the stack. Observable outcome: the plan destroys only the certificate
       and the validation resource, and `_dcd1388….leopoldwalther.com` still resolves afterwards.
-- [ ] **Validation-first.** Delete `infrastructure/shared/dns/`, remove it from
+- [x] **Validation-first.** Delete `infrastructure/shared/dns/`, remove it from
       `.github/workflows/terraform-validate.yml` if listed, and clean up the leftover state object
       `vlc-state/shared/dns/terraform.tfstate`.
 
 ### Phase 3 — Documentation
 
-- [ ] Update `documentation/FRONTEND_LAYER.md`, `documentation/PROD_PROMOTION_RUNBOOK.md`,
+- [x] Update `documentation/FRONTEND_LAYER.md`, `documentation/PROD_PROMOTION_RUNBOOK.md`,
       `README.md`, and the `certificate_arn` description in `modules/frontend/variables.tf`. State that
       `leopoldwalther.com` is owned by the website repository, and that this repository manages only
       its two subdomains.
@@ -111,12 +112,14 @@ change.
 
 ## Success criteria
 
-- [ ] Both distributions serve a certificate covering only their own subdomain
-- [ ] `infrastructure/shared/dns` and its state are gone, and the wildcard certificate is deleted
-- [ ] `_dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com` was not deleted
-- [ ] No Terraform state in this repository manages a resource outside the two subdomains and their
+- [x] Both distributions serve a certificate covering only their own subdomain
+- [x] `infrastructure/shared/dns` and its state are gone, and the wildcard certificate is deleted
+- [x] ~~`_dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com` was not deleted~~ — superseded
+      (user instruction 2026-10-05): it was deleted deliberately, because the website stack was not
+      yet applied and recreates it on its first apply
+- [x] No Terraform state in this repository manages a resource outside the two subdomains and their
       validation records (the read-only zone data source is fine)
-- [ ] `terraform fmt -check -recursive` and `terraform validate` pass for every stack
+- [x] `terraform fmt -check -recursive` and `terraform validate` pass for every stack
 
 ## Open questions & risks
 
@@ -169,3 +172,9 @@ change.
   (`dig` on the authoritative NS: no answer). ACM in us-east-1 now lists only the two subdomain
   certificates, and both sites return 200 with a verified chain. The website stack's first apply
   recreates the apex validation record.
+- **2026-10-05** — 17.6/17.7 done. Removed `infrastructure/shared/dns/` and the empty state object
+  `vlc-state/shared/dns/terraform.tfstate`. The bucket is versioned, so noncurrent versions remain.
+  Updated `FRONTEND_LAYER.md`, `PROD_PROMOTION_RUNBOOK.md`, `README.md`, and the `certificate_arn`
+  and `aliases` descriptions in `modules/frontend/variables.tf`, including leftover `vlc-report`
+  domain names. `terraform fmt -check -recursive` and `terraform validate` pass for dev and prod.
+  Feature complete.
