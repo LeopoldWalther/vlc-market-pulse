@@ -162,3 +162,10 @@ change.
   Its first apply recreates the record. If the website stack has been applied by then, use
   `terraform state rm` instead and don't delete the record. Technical plan v1.1 replaces the phase 2
   checkboxes above.
+- **2026-10-05** — 17.5 done. Gate 1: `head-bucket leopoldwalther-website-tf-state` returned 404
+  (website stack unapplied, so the record is deleted rather than moved out with `state rm`). Gate 2:
+  wildcard `InUseBy` = `[]`. `terraform plan -destroy` listed exactly the 4 expected instances. The
+  destroy removed the wildcard certificate, its validation, and `_dcd1388….leopoldwalther.com`
+  (`dig` on the authoritative NS: no answer). ACM in us-east-1 now lists only the two subdomain
+  certificates, and both sites return 200 with a verified chain. The website stack's first apply
+  recreates the apex validation record.
