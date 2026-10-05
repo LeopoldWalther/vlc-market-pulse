@@ -149,3 +149,9 @@ change.
   Applied locally: 3 added, 1 changed (distribution `E2N85NF7XDZF9F`, in place). After
   `distribution-deployed`, `openssl` shows subject and SAN `vlc-market-pulse-dev.leopoldwalther.com`
   only (valid to 2027-04-19); `curl` returns 200 with a verified chain.
+- **2026-10-05** — 17.3/17.4 done (prod). CAA pre-check unchanged (none). New prod certificate:
+  `arn:aws:acm:us-east-1:063096286047:certificate/d91a8914-8437-4980-88cd-9d8e14648d92`, validated
+  through `_8f36b2bbd5a1b210ebe7459f031cea7d.vlc-market-pulse.leopoldwalther.com`. Applied locally:
+  3 added, 1 changed (distribution `E12XQJO7PC0L55`, in place). After `distribution-deployed`,
+  `openssl` shows subject and SAN `vlc-market-pulse.leopoldwalther.com` only (valid to 2027-04-20);
+  `curl` returns 200 with a verified chain.
