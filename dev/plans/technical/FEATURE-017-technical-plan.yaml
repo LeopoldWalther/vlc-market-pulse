@@ -163,7 +163,7 @@ technical_plan:
         --region us-east-1 --certificate-arn <wildcard> --query Certificate.InUseBy` returns [].
         Then in infrastructure/shared/dns run `terraform plan -destroy`, review it, and
         `terraform destroy`. The directory stays until 17.6 because destroy needs its config.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 0.5
       depends_on: ["17.4"]
