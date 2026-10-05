@@ -4,7 +4,7 @@ technical_plan:
     title: "Subdomain-scoped certificates; hand leopoldwalther.com ownership to the website repository"
     created_by: "@reviewer"
     created_at: "2026-10-04"
-    version: "1.0"
+    version: "1.1"
     total_tasks: 7
     estimated_hours: 4.25
     risk_level: "medium"
@@ -151,27 +151,29 @@ technical_plan:
         - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
 
     - id: "17.5"
-      title: "Retire the shared/dns stack without deleting the shared validation record"
+      title: "Retire the shared/dns stack, including the apex validation record"
       description: >
-        Gates, in order: (1) `aws acm describe-certificate --region us-east-1 --certificate-arn
-        <wildcard> --query Certificate.InUseBy` returns []; (2) the website repository's
-        `terraform state list` contains the _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com
-        record (review M3). If (2) fails, stop and hand over via `terraform import` in the website
-        repository first. Then in infrastructure/shared/dns run
-        `terraform state rm 'aws_route53_record.cert_validation["*.leopoldwalther.com"]' 'aws_route53_record.cert_validation["leopoldwalther.com"]'`
-        followed by `terraform plan -destroy`, review it, and `terraform destroy`. The directory
-        stays until 17.6 because destroy needs its config.
+        Revised 2026-10-05 on the user's explicit instruction. The original gate (the website state
+        owns _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com) cannot be met: the website
+        infrastructure has never been applied. Rule from the user: if the website stack is still
+        unapplied, destroy the record together with shared/dns (no state rm); if the website stack
+        has been applied by then, `terraform state rm` both cert_validation keys first and do not
+        delete the record. Gates: (1) `aws s3api head-bucket --bucket leopoldwalther-website-tf-state`
+        returns 404 (otherwise use the state rm branch); (2) `aws acm describe-certificate
+        --region us-east-1 --certificate-arn <wildcard> --query Certificate.InUseBy` returns [].
+        Then in infrastructure/shared/dns run `terraform plan -destroy`, review it, and
+        `terraform destroy`. The directory stays until 17.6 because destroy needs its config.
       status: "not_started"
       complexity: "medium"
       estimated_hours: 0.5
       depends_on: ["17.4"]
       branch: "feature/subdomain-scoped-certificates/17.5-retire-shared-dns"
-      commit_message: "docs(plan): record shared/dns destroy and validation-record handover"
+      commit_message: "docs(plan): record shared/dns destroy"
       acceptance_criteria:
-        - "GIVEN both gates pass WHEN `terraform plan -destroy` runs THEN it destroys exactly 2 resources: aws_acm_certificate.wildcard and aws_acm_certificate_validation.wildcard"
-        - "AFTER destroy, `dig +short CNAME _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com` still returns the acm-validations.aws target"
+        - "GIVEN both gates pass WHEN `terraform plan -destroy` runs THEN it destroys exactly 4 instances: aws_acm_certificate.wildcard, aws_acm_certificate_validation.wildcard, and both aws_route53_record.cert_validation keys"
         - "AFTER destroy, `aws acm list-certificates --region us-east-1` no longer lists *.leopoldwalther.com"
-        - "The progress log contains the InUseBy output, the website state-list line, the state rm output and the dig result"
+        - "AFTER destroy, both subdomains still serve their own certificate with HTTP 200"
+        - "The progress log contains both gate outputs and the destroy summary"
       allowed_files:
         - "dev/plans/FEATURE-017-subdomain-scoped-certificates.md"
       forbidden_files:
@@ -264,6 +266,6 @@ technical_plan:
 
   notes:
     - "All applies are local. The github-actions-deploy role cannot plan the environment stacks today (review M4); do not add IAM grants in this feature."
-    - "17.5 and 17.6 are irreversible. 17.5 requires the website repository to own _dcd1388178dbf9136ed514dd4f696783.leopoldwalther.com first."
+    - "17.5 and 17.6 are irreversible. v1.1 (user instruction 2026-10-05): delete the apex validation record with shared/dns while the website stack is unapplied; once it is applied, state rm instead of deleting."
     - "Website FEATURE-004 phase 3 (dropping prevent_destroy on its apex validation record) is unblocked after 17.5."
     - "Do not touch stray files infrastructure/environments/dev/tfplan-health-fix and infrastructure/environments/prod/response.json."

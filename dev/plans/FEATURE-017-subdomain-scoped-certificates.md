@@ -155,3 +155,10 @@ change.
   3 added, 1 changed (distribution `E12XQJO7PC0L55`, in place). After `distribution-deployed`,
   `openssl` shows subject and SAN `vlc-market-pulse.leopoldwalther.com` only (valid to 2027-04-20);
   `curl` returns 200 with a verified chain.
+- **2026-10-05** — Plan revision for 17.5 on the user's explicit instruction. Review M3's gate failed
+  because the website infrastructure has never been applied: the state bucket
+  `leopoldwalther-website-tf-state` returns 404, and there is no apex certificate in the account.
+  The new rule: while the website stack is unapplied, delete `_dcd1388…` together with `shared/dns`.
+  Its first apply recreates the record. If the website stack has been applied by then, use
+  `terraform state rm` instead and don't delete the record. Technical plan v1.1 replaces the phase 2
+  checkboxes above.
