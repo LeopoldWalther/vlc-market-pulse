@@ -222,7 +222,7 @@ technical_plan:
         environment issues its own us-east-1 certificate, and that any apex CAA must allow
         amazon.com. Mark the feature complete in the plan file and dev/plans/README.md, and tick the
         success criteria.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["17.6"]
