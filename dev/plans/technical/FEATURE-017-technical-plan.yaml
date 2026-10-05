@@ -190,7 +190,7 @@ technical_plan:
         Delete infrastructure/shared/dns/. Delete s3://vlc-real-estate-analytics-tf-state/vlc-state/shared/dns/terraform.tfstate
         (and a leftover .tflock if present); the bucket is versioned, so noncurrent versions remain
         as a backup. shared/dns is not in the terraform-validate.yml matrix — no workflow change.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.25
       depends_on: ["17.5"]
