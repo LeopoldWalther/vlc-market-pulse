@@ -130,7 +130,7 @@ technical_plan:
         Same procedure as 17.2 for prod: CAA pre-check, local apply, wait for the distribution
         (ID from `terraform output -raw frontend_distribution_id`) to deploy, openssl
         check. Rollback as in 17.2.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.5
       depends_on: ["17.3"]
