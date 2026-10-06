@@ -249,3 +249,8 @@ infrastructure/environments/*/response.json
 # Frontend
 frontend/node_modules/
 frontend/coverage/
+
+# --- Claude Code -------------------------------------------------------------
+# Shared project rules (CLAUDE.md) and the ARI commands (.claude/commands/) are
+# committed; per-machine permission overrides are not.
+.claude/settings.local.json

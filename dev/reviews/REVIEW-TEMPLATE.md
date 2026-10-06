@@ -1,6 +1,6 @@
 # Review — FEATURE-XXX: <feature title>
 
-**Reviewer:** `@reviewer` · **Date:** YYYY-MM-DD · **Plan:** [FEATURE-XXX](../plans/FEATURE-XXX-<slug>.md)
+**Reviewer:** `/reviewer` · **Date:** YYYY-MM-DD · **Plan:** [FEATURE-XXX](../plans/FEATURE-XXX-<slug>.md)
 **Verdict:** <✅ Approved | ⚠️ Changes Recommended | 🔄 Alternative Proposed | ❌ Major Revision Needed>
 
 ## Summary
@@ -65,7 +65,7 @@ blocks: 🔴 must-fix, 🟡 should-fix, 🟢 optional.
 
 ## Next step
 
-<e.g. "Address H1–H2, then `@implementer Implement FEATURE-XXX`" or "Return to `@architect` to
+<e.g. "Address H1–H2, then `/implementer FEATURE-XXX`" or "Return to `/architect` to
 rework the data model.">
 
 ---

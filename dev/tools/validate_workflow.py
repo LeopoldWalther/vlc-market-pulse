@@ -44,6 +44,7 @@ STALE_PATH_PATTERNS = [
     re.compile(r"\bdev/plan/"),
     re.compile(r"\bdev/plan\b"),
     re.compile(r"\bdev/implementations/"),
+    re.compile(r"\.github/agents/"),
 ]
 
 TEXT_SUFFIXES = {".md", ".txt", ".yml", ".yaml"}
@@ -156,7 +157,7 @@ def _plan_file_for(feature_id: str) -> Path | None:
 
 
 def _check_stale_paths(errors: list[str]) -> None:
-    for scope in (ROOT / ".github", ROOT / "dev"):
+    for scope in (ROOT / ".github", ROOT / ".claude", ROOT / "dev"):
         for path in scope.rglob("*"):
             if not path.is_file() or not _looks_like_text(path):
                 continue
