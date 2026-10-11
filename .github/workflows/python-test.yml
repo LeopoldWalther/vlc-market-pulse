@@ -71,8 +71,9 @@ jobs:
           pytest common/tests/ data_collection/tests/ data_processing/tests/ pipeline_health/tests/ --cov=common --cov=data_collection --cov=data_processing --cov=pipeline_health --cov-report=xml --cov-report=term --cov-fail-under=80
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v5
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           files: ./src/etl/coverage.xml
           flags: unittests
           name: codecov-umbrella
