@@ -68,11 +68,10 @@ jobs:
       - name: Run tests with coverage
         run: |
           cd src/etl
-          pytest data_collection/tests/ --cov=data_collection --cov-report=xml --cov-report=term --cov-fail-under=80
+          pytest common/tests/ data_collection/tests/ data_processing/tests/ pipeline_health/tests/ --cov=common --cov=data_collection --cov=data_processing --cov=pipeline_health --cov-report=xml --cov-report=term --cov-fail-under=80
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v4
-        if: github.event_name == 'pull_request'
         with:
           files: ./src/etl/coverage.xml
           flags: unittests
