@@ -4,12 +4,16 @@ on:
   pull_request:
     paths:
       - '.github/**'
+      - '.claude/**'
+      - 'CLAUDE.md'
       - 'dev/**'
   push:
     branches:
       - main
     paths:
       - '.github/**'
+      - '.claude/**'
+      - 'CLAUDE.md'
       - 'dev/**'
 
 jobs:

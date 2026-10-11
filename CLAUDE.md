@@ -1,4 +1,4 @@
-# VLC Real Estate Analytics — Copilot Instructions
+# VLC Market Pulse — Project Instructions
 
 ## Project Overview
 

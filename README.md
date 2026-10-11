@@ -1,5 +1,7 @@
 # VLC Market Pulse
 
+[![Python tests](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/python-test.yml/badge.svg)](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/python-test.yml) [![Frontend tests](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/node-test.yml/badge.svg)](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/node-test.yml) [![Terraform](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/terraform-validate.yml/badge.svg)](https://github.com/LeopoldWalther/vlc-market-pulse/actions/workflows/terraform-validate.yml) ![Coverage gate](https://img.shields.io/badge/coverage-%E2%89%A580%25%20enforced%20in%20CI-brightgreen) ![License](https://img.shields.io/badge/license-MIT-blue)
+
 Cloud-hosted serverless price-trend analytics for the Valencia real-estate market. A fully automated data pipeline has collected a weekly price history since 2023 and automatically updates it to a live public dashboard every week. The complete project results in about €3/month cloud costs, with no servers to maintain.
 
 ## Why It Exists
@@ -49,9 +51,18 @@ EventBridge → Bronze Collector → S3 bronze/  (raw JSON from the Idealista AP
 
 Key choices: **serverless** (a weekly, bursty job that scales to zero, ~€3/month); **medallion architecture** (immutable raw history, reproducible cleaning, a stable analytics contract — any layer rebuilds from the one below); **S3 instead of a database** (cheap, durable, ideal for immutable snapshots); and a **static, backend-free dashboard** (pre-aggregated JSON, nothing to run or attack).
 
-## Sister Project — vlc-price-estimator
+## Sister Project — VLC Market Oracle
 
-The scalable counterpart to this repo: instead of the quota-limited Idealista API, it web-scrapes the full Comunidad Valenciana inventory on ECS/Fargate for price estimation and ML. Together they show the same market as a cheap trend engine and a scalable intelligence engine.
+The scalable counterpart to this repo: instead of the quota-limited Idealista API, [VLC Market Oracle](https://github.com/LeopoldWalther/vlc-market-oracle) collects listing snapshots across the Comunidad Valenciana with a managed collection path, keeps every raw observation replayable, and rebuilds versioned Parquet tables from Bronze. Together they show the same market as a cheap trend engine and a scalable intelligence engine. Oracle is in development; its repository is private until the Silver layer is in place.
+
+## Lessons Learned
+
+- **The data source is the risk, not the pipeline.** A weekly job that silently returns fewer rows looks healthy from the outside. That is why the Pipeline Health tab exists: an independent Lambda watches run success, duration, API quota and spend, and the dashboard shows it as traffic lights instead of hiding it in logs.
+- **Serverless is the right shape for a bursty weekly job.** Three Lambdas on EventBridge scale to zero between runs and cost about €3 per month. A small always-on server would cost more and need patching.
+- **Keep raw history immutable.** Bronze is never rewritten. Every Silver and Gold table can be rebuilt from the layer below, so a cleaning bug is a re-run, not a data loss.
+- **S3 beats a database for immutable snapshots.** Cheap, durable, no connection pool, nothing to back up separately.
+- **A static dashboard has no attack surface.** Pre-aggregated JSON behind CloudFront means nothing to run, patch or scale at the edge.
+- **Test the domain logic, not AWS.** Dependencies are injected and SDKs sit behind project-owned interfaces, so the >80 % coverage gate runs in seconds without credentials.
 
 ## Getting Started
 

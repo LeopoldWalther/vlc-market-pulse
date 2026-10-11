@@ -3,8 +3,8 @@
 **Status:** 🔵 Planned · **Effort:** <S/M/L (~Xh)> · **Priority:** <High/Medium/Low>
 **Branch root:** `feature/<feature-slug>` · **Created:** YYYY-MM-DD · **Updated:** YYYY-MM-DD
 
-> Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-XXX.md`).
-> Implemented by `@implementer` from `dev/plans/technical/FEATURE-XXX-technical-plan.yaml`.
+> Authored by `/architect`. Reviewed by `/reviewer` (see `dev/reviews/REVIEW-FEATURE-XXX.md`).
+> Implemented by `/implementer` from `dev/plans/technical/FEATURE-XXX-technical-plan.yaml`.
 
 ## Objective
 

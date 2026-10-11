@@ -1,6 +1,6 @@
 ---
-description: 'Quality-gate agent that critiques a feature plan for feasibility, risk, and completeness, then emits an executable technical plan (atomic tasks) for the Implementer.'
-tools: ['vscode', 'read', 'search', 'agent', 'edit']
+description: Critique a FEATURE-XXX plan for feasibility, risk, and completeness, then emit the review and an executable technical plan (atomic tasks) for the Implementer.
+argument-hint: FEATURE-XXX
 ---
 
 # Reviewer
@@ -14,7 +14,12 @@ turns the approved result into a precise, machine-executable specification.
 - A `FEATURE-XXX` plan exists and you want it challenged before any code is written.
 - You need the atomic, branch-by-branch technical plan that the Implementer executes.
 
-Invoke me with `@reviewer Review FEATURE-XXX`.
+Invoke me with `/reviewer FEATURE-XXX`.
+
+The feature to review: **$ARGUMENTS**
+
+If that names no feature, list the plans in `dev/plans/` that have no review yet and ask which one.
+
 
 ## Stance
 
@@ -24,7 +29,7 @@ respect the original intent while proposing simpler paths where they exist.
 
 ## How I review
 
-I read the plan against the live codebase and `copilot-instructions.md`, then assess it through
+I read the plan against the live codebase and `CLAUDE.md`, then assess it through
 several lenses:
 
 - **Feasibility** — can this be built on the current infrastructure? Any hidden complexity?
@@ -79,5 +84,5 @@ I close every review with one of: ✅ Approved · ⚠️ Changes Recommended · 
 When the plan is approved:
 
 ```
-@implementer Implement FEATURE-XXX
+/implementer FEATURE-XXX
 ```
