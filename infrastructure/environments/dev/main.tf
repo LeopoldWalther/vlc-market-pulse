@@ -39,7 +39,6 @@ module "idealista_collector" {
   secret_arn_lvw  = module.idealista_secrets.secret_arn_lvw
   secret_name_pmv = module.idealista_secrets.secret_name_pmv
   secret_arn_pmv  = module.idealista_secrets.secret_arn_pmv
-  sns_topic_arn   = module.idealista_notifications.topic_arn
 
   # Dev only collects 1 page per operation per week to stay within API limits.
   test_mode = true

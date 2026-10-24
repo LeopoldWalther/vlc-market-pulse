@@ -312,6 +312,17 @@ Two failure paths stop the pipeline before downstream stages run:
 
 `NotifyFailure` publishes an SNS message with the Step Functions execution name, then transitions to the `PipelineFailed` (Fail) state. This ensures the bronze handler's swallowed-500 return stops silver and gold from running.
 
+### Email notifications
+
+Each environment sends **exactly one email per run** — `NotifySuccess` (with bronze/silver/gold metrics) or `NotifyFailure`. The individual Lambdas send no success emails of their own. Because dev and prod share one inbox, the subject leads with an environment icon and label, followed by a status icon:
+
+| Environment | Success | Failure |
+|---|---|---|
+| prod | `🏠 PROD ✅ VLC Market Pulse - weekly pipeline succeeded` | `🏠 PROD ❌ VLC Market Pulse - weekly pipeline FAILED` |
+| dev | `🧪 DEV ✅ VLC Market Pulse - weekly pipeline succeeded` | `🧪 DEV ❌ VLC Market Pulse - weekly pipeline FAILED` |
+
+The icons are defined in `locals.environment_icons` in `modules/pipeline_orchestrator/main.tf`.
+
 ### Terraform module
 
 **Path**: `infrastructure/modules/pipeline_orchestrator/`
@@ -333,7 +344,7 @@ modules/pipeline_orchestrator/
 | `bronze_function_arn` | string | — | ARN of the bronze collector Lambda |
 | `silver_function_arn` | string | — | ARN of the silver cleaner Lambda |
 | `gold_function_arn` | string | — | ARN of the gold aggregator Lambda |
-| `sns_topic_arn` | string | — | SNS topic for failure notifications |
+| `sns_topic_arn` | string | — | SNS topic for the per-run summary email (success or failure) |
 | `test_mode` | bool | `false` | Passed to bronze Lambda; limits to 1 page/operation in dev |
 
 #### Resources created

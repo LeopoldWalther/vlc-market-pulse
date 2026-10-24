@@ -20,10 +20,10 @@ The Bronze Collector is a scheduled AWS Lambda function that fetches Valencia re
          │  OAuth2 token → paginated JSON pages
          │  PutObject: bronze/idealista/{op}_{YYYYMMDD}_{HHMMSS}_{page}.json
          ▼
-┌──────────────────┐     ┌───────────────────────────────┐
-│  S3 Bronze Layer │     │  SNS Topic (error alerts)      │
-│  bronze/idealista│     │  prod only (test_mode skips)   │
-└──────────────────┘     └───────────────────────────────┘
+┌──────────────────┐
+│  S3 Bronze Layer │   (no email from the collector — the Step Functions
+│  bronze/idealista│    orchestrator sends one summary per run & env)
+└──────────────────┘
 ```
 
 ## S3 Key Format
@@ -67,13 +67,13 @@ behaviour lives in `bronze_collector.py`:
   URL; new operations are added as a new classmethod, not a branch.
 - **Adapter** — `IdealistaApiClient` wraps `requests` behind the `SearchApiClient` protocol so the
   collector never speaks the vendor SDK directly.
-- **Dependency Injection** — `BronzeCollector` takes `ObjectStore`, `SecretsProvider`, `Notifier` and
+- **Dependency Injection** — `BronzeCollector` takes `ObjectStore`, `SecretsProvider`, `MetricsPublisher` and
   `SearchApiClient` via its constructor; production wiring happens once, in `build_collector`, tests
   inject the `common` in-memory fakes instead.
 - **Template Method** — `collect()` defines the fetch → parse → persist skeleton shared by both
   operations; `_collect_operation` fills in the per-operation steps.
 - **Single Responsibility / Custom Exceptions** — `BronzeCollector` only orchestrates; storage,
-  secrets and notifications are separate collaborators; API failures raise `IdealistaAPIError`.
+  secrets and metrics are separate collaborators; API failures raise `IdealistaAPIError`.
 
 ### Search Parameters
 
@@ -85,7 +85,6 @@ behaviour lives in `bronze_collector.py`:
 
 When invoked with `{"test_mode": true}` in the event payload:
 - Limits collection to 1 page per operation (2 API calls total)
-- Suppresses SNS notification email
 
 In dev, EventBridge automatically passes `{"test_mode": true}` via the target `input` field, so the scheduled run never exceeds 2 API calls per week.
 
@@ -108,7 +107,6 @@ modules/lambda_bronze/
 | `environment` | string | — | `dev` or `prod` |
 | `aws_region` | string | — | AWS region |
 | `s3_bucket_name` | string | — | Target S3 bucket |
-| `sns_topic_arn` | string | — | SNS topic for alerts |
 | `test_mode` | bool | `false` | Pass `{"test_mode":true}` as EventBridge input |
 
 ### Resources Created
@@ -126,7 +124,6 @@ modules/lambda_bronze/
 - **CloudWatch Logs**: `CreateLogGroup`, `CreateLogStream`, `PutLogEvents`
 - **S3**: `PutObject`, `PutObjectAcl`, `ListBucket` on the listings bucket
 - **Secrets Manager**: `GetSecretValue` on LVW + PMV secret ARNs
-- **SNS**: `Publish` on the notifications topic
 
 ## Deployment
 

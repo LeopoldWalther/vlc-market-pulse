@@ -32,7 +32,6 @@ module "idealista_collector" {
   secret_arn_lvw  = module.idealista_secrets.secret_arn_lvw
   secret_name_pmv = module.idealista_secrets.secret_name_pmv
   secret_arn_pmv  = module.idealista_secrets.secret_arn_pmv
-  sns_topic_arn   = module.idealista_notifications.topic_arn
 
   # CRITICAL: the pipeline_orchestrator module below owns the single weekly
   # trigger. Disabling this prevents a double-invocation on Sunday.

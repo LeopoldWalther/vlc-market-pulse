@@ -20,7 +20,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from common.metrics_publisher import InMemoryMetricsPublisher  # noqa: E402
-from common.notifier import InMemoryNotifier  # noqa: E402
 from common.object_store import InMemoryObjectStore  # noqa: E402
 from common.secrets_provider import (  # noqa: E402
     InMemorySecretsProvider,
@@ -74,7 +73,6 @@ class BrokenJsonApiClient:
 def make_collector(
     api_client: object | None = None,
     store: InMemoryObjectStore | None = None,
-    notifier: InMemoryNotifier | None = None,
     secrets: Dict[str, Dict[str, str]] | None = None,
     metrics_publisher: InMemoryMetricsPublisher | None = None,
 ) -> BronzeCollector:
@@ -84,7 +82,6 @@ def make_collector(
         secrets_provider=InMemorySecretsProvider(
             secrets if secrets is not None else SECRETS
         ),
-        notifier=notifier if notifier is not None else InMemoryNotifier(),
         api_client=api_client if api_client is not None else FakeApiClient(),
         secret_name_lvw="secret-lvw",
         secret_name_pmv="secret-pmv",
@@ -217,27 +214,13 @@ class TestCollect:
         assert sale_calls == ["lvw-key"]  # sale → LVW credentials
         assert rent_calls == ["pmv-key"]  # rent → PMV credentials
 
-    def test_test_mode_collects_single_page_and_skips_notification(self) -> None:
-        notifier = InMemoryNotifier()
+    def test_test_mode_collects_single_page_per_operation(self) -> None:
         api = FakeApiClient(total_pages=5)
 
-        result = make_collector(api_client=api, notifier=notifier).collect(
-            test_mode=True
-        )
+        result = make_collector(api_client=api).collect(test_mode=True)
 
         assert result.sale_pages == 1
         assert result.rent_pages == 1
-        assert notifier.messages == []
-
-    def test_normal_mode_sends_exactly_one_summary_notification(self) -> None:
-        notifier = InMemoryNotifier()
-
-        result = make_collector(notifier=notifier).collect(test_mode=False)
-
-        assert len(notifier.messages) == 1
-        subject, message = notifier.messages[0]
-        assert "Successfully" in subject
-        assert result.timestamp in message
 
     def test_result_carries_feature_007_summary_fields(self) -> None:
         """The orchestrator summary contract fields must be populated."""

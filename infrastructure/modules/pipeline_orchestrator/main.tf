@@ -12,14 +12,31 @@ terraform {
 # ---------------------------------------------------------------------------
 # State machine definition — ASL rendered via templatefile so Lambda and SNS
 # ARNs are injected at plan time; no hardcoded ARNs in the JSON file.
+#
+# Every environment sends exactly one email per run (success OR failure).
+# dev and prod share the same inbox, so the subject leads with an
+# environment icon + label to keep the two apart at a glance, followed by
+# a status icon. Distinct subjects also stop Gmail from threading dev and
+# prod into one conversation.
 # ---------------------------------------------------------------------------
 locals {
+  environment_icons = {
+    dev     = "🧪"
+    staging = "🚧"
+    prod    = "🏠"
+  }
+  environment_label = upper(var.environment)
+  subject_prefix    = "${local.environment_icons[var.environment]} ${local.environment_label}"
+
   asl_definition = templatefile("${path.module}/state_machine.asl.json.tftpl", {
     bronze_function_arn = var.bronze_function_arn
     silver_function_arn = var.silver_function_arn
     gold_function_arn   = var.gold_function_arn
     sns_topic_arn       = var.sns_topic_arn
     test_mode           = var.test_mode
+    environment_label   = local.environment_label
+    success_subject     = "${local.subject_prefix} ✅ VLC Market Pulse - weekly pipeline succeeded"
+    failure_subject     = "${local.subject_prefix} ❌ VLC Market Pulse - weekly pipeline FAILED"
   })
 }
 

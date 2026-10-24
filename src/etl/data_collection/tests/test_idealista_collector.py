@@ -31,7 +31,6 @@ FULL_ENV: Dict[str, str] = {
     "S3_BUCKET": "test-bucket",
     "SECRET_NAME_LVW": "secret-lvw",
     "SECRET_NAME_PMV": "secret-pmv",
-    "SNS_TOPIC_ARN": "arn:aws:sns:eu-central-1:123456789012:alerts",
 }
 
 RESULT = CollectionResult(
