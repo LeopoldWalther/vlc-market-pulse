@@ -29,7 +29,7 @@ variable "gold_function_arn" {
 }
 
 variable "sns_topic_arn" {
-  description = "ARN of the SNS topic used to publish pipeline failure notifications."
+  description = "ARN of the SNS topic used to publish the per-run pipeline summary (success or failure)."
   type        = string
 }
 

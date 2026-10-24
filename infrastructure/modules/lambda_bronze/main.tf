@@ -143,25 +143,6 @@ resource "aws_iam_role_policy" "lambda_secrets" {
   })
 }
 
-# Policy for SNS publish access
-resource "aws_iam_role_policy" "lambda_sns" {
-  name = "${var.environment}-idealista-collector-sns"
-  role = aws_iam_role.lambda_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "sns:Publish"
-        ]
-        Resource = var.sns_topic_arn
-      }
-    ]
-  })
-}
-
 # Policy for CloudWatch API-quota metric publishing (FEATURE-012, task 12.4).
 # Least privilege: PutMetricData does not support resource-level ARN
 # scoping, so the namespace condition key is the narrowest available
@@ -217,7 +198,6 @@ resource "aws_lambda_function" "idealista_collector" {
       S3_PREFIX       = "bronze/idealista/"
       SECRET_NAME_LVW = var.secret_name_lvw
       SECRET_NAME_PMV = var.secret_name_pmv
-      SNS_TOPIC_ARN   = var.sns_topic_arn
     }
   }
 

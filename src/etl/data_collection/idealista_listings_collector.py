@@ -26,7 +26,6 @@ from bronze_collector import (  # noqa: F401 — re-exported for compatibility
     SearchConfig,
 )
 from common.metrics_publisher import CloudWatchMetricsPublisher
-from common.notifier import SnsNotifier
 from common.object_store import S3ObjectStore
 from common.secrets_provider import SecretsManagerProvider
 
@@ -45,7 +44,7 @@ def build_collector(env: Dict[str, str]) -> BronzeCollector:
 
     Args:
         env: Environment mapping (normally ``os.environ``) providing
-            S3_BUCKET, SECRET_NAME_LVW, SECRET_NAME_PMV, SNS_TOPIC_ARN
+            S3_BUCKET, SECRET_NAME_LVW, SECRET_NAME_PMV
             and optionally S3_PREFIX.
 
     Returns:
@@ -57,19 +56,17 @@ def build_collector(env: Dict[str, str]) -> BronzeCollector:
     s3_bucket = env.get("S3_BUCKET")
     secret_name_lvw = env.get("SECRET_NAME_LVW")
     secret_name_pmv = env.get("SECRET_NAME_PMV")
-    sns_topic_arn = env.get("SNS_TOPIC_ARN")
 
-    if not all([s3_bucket, secret_name_lvw, secret_name_pmv, sns_topic_arn]):
+    if not all([s3_bucket, secret_name_lvw, secret_name_pmv]):
         raise IdealistaAPIError(
             "Missing required environment variables: "
-            "S3_BUCKET, SECRET_NAME_LVW, SECRET_NAME_PMV, SNS_TOPIC_ARN"
+            "S3_BUCKET, SECRET_NAME_LVW, SECRET_NAME_PMV"
         )
 
     # Narrowed by the guard above; assertions keep mypy precise.
     assert s3_bucket is not None
     assert secret_name_lvw is not None
     assert secret_name_pmv is not None
-    assert sns_topic_arn is not None
 
     # Medallion Architecture: bronze layer prefix.
     s3_prefix = env.get("S3_PREFIX", "bronze/idealista/")
@@ -77,7 +74,6 @@ def build_collector(env: Dict[str, str]) -> BronzeCollector:
     return BronzeCollector(
         object_store=S3ObjectStore(bucket=s3_bucket),
         secrets_provider=SecretsManagerProvider(),
-        notifier=SnsNotifier(topic_arn=sns_topic_arn),
         api_client=IdealistaApiClient(),
         secret_name_lvw=secret_name_lvw,
         secret_name_pmv=secret_name_pmv,

@@ -10,7 +10,11 @@ Class responsibilities (SOLID):
 - :class:`BronzeCollector` — orchestrates one weekly collection run via the
   **Template Method** skeleton fetch → parse → persist, depending only on
   the injected edge Protocols (**Dependency Inversion**): ``ObjectStore``,
-  ``SecretsProvider``, ``Notifier`` and :class:`SearchApiClient`.
+  ``SecretsProvider`` and :class:`SearchApiClient`.
+
+Notifications are deliberately NOT sent from here: the Step Functions
+orchestrator publishes one per-environment summary email per run that
+already includes the bronze page counts, size and duration.
 
 boto3 never appears here — AWS is reached exclusively through the
 ``common`` adapters wired in by the handler's Factory.
@@ -26,7 +30,6 @@ from datetime import datetime
 from typing import Dict, List, Optional, Protocol, Tuple
 
 from common.metrics_publisher import MetricsPublisher
-from common.notifier import Notifier
 from common.object_store import ObjectStore
 from common.search_config import IDEALISTA_SEARCH_PARAMS
 from common.secrets_provider import SecretsProvider
@@ -276,9 +279,8 @@ class BronzeCollector:
     Orchestrates one weekly bronze collection run.
 
     Template Method: :meth:`collect` fixes the skeleton — credentials →
-    per-operation fetch/parse/persist → metrics → notification — while the
-    variable parts (search parameters, HTTP transport, storage, secrets,
-    notification channel) are supplied as injected collaborators
+    per-operation fetch/parse/persist → metrics — while the variable parts
+    (search parameters, HTTP transport, storage, secrets) are supplied as injected collaborators
     (Dependency Injection / Single Responsibility).
 
     CRITICAL: the result fields feed the Lambda response body that
@@ -291,7 +293,6 @@ class BronzeCollector:
         *,
         object_store: ObjectStore,
         secrets_provider: SecretsProvider,
-        notifier: Notifier,
         api_client: SearchApiClient,
         secret_name_lvw: str,
         secret_name_pmv: str,
@@ -304,7 +305,6 @@ class BronzeCollector:
         Args:
             object_store: Storage edge for the bronze JSON pages.
             secrets_provider: Source of the two API credential sets.
-            notifier: Channel for the success summary email.
             api_client: HTTP edge for the Idealista API.
             secret_name_lvw: Secret name for the LVW credential set (sale).
             secret_name_pmv: Secret name for the PMV credential set (rent).
@@ -320,7 +320,6 @@ class BronzeCollector:
         """
         self._object_store = object_store
         self._secrets = secrets_provider
-        self._notifier = notifier
         self._api = api_client
         self._secret_name_lvw = secret_name_lvw
         self._secret_name_pmv = secret_name_pmv
@@ -331,11 +330,11 @@ class BronzeCollector:
 
     def collect(self, test_mode: bool = False) -> CollectionResult:
         """
-        Run the full collection: sale + rent, persist all pages, notify.
+        Run the full collection: sale + rent, persist all pages.
 
         Args:
-            test_mode: When ``True``, collect only 1 page per operation and
-                skip the success notification (dev behaviour).
+            test_mode: When ``True``, collect only 1 page per operation
+                (dev behaviour, stays within the Idealista API quota).
 
         Returns:
             The run summary consumed by the Lambda response body.
@@ -382,11 +381,6 @@ class BronzeCollector:
             total_size_mb=total_size_mb,
         )
         logger.info(result.message)
-
-        # Success email only outside test mode (unchanged behaviour).
-        if not test_mode:
-            self._notify_success(result)
-
         return result
 
     def _collect_operation(
@@ -475,8 +469,7 @@ class BronzeCollector:
         Called once per page from a ``finally`` block (task 12.3, review
         H1) so failed/partial pages are counted exactly like successful
         ones. Failures from the metrics backend must never fail the
-        collection run, matching the :class:`~common.notifier.Notifier`
-        convention.
+        collection run.
 
         Args:
             operation: ``'sale'`` or ``'rent'`` — mapped to its
@@ -495,49 +488,6 @@ class BronzeCollector:
             )
         except Exception as exc:  # noqa: BLE001 — never fail the run
             logger.error(f"Error publishing API request metric: {exc}")
-
-    def _notify_success(self, result: CollectionResult) -> None:
-        """
-        Publish the execution-summary email (format unchanged).
-
-        Notification failures are swallowed by the Notifier adapter — they
-        must never fail the collection run.
-        """
-        try:
-            dt = datetime.strptime(result.timestamp, "%Y%m%d_%H%M%S")
-            formatted_time = dt.strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError as e:
-            logger.error(f"Unexpected error sending notification: {e}")
-            return
-
-        subject = f"✅ Idealista Listings Collected Successfully - {formatted_time} UTC"
-
-        message = f"""Idealista Listings Collection - Execution Summary
-{'=' * 60}
-
-Execution Details:
-  • Time: {formatted_time} UTC
-  • Duration: {result.duration_seconds:.1f} seconds
-  • Result: Successfully completed
-
-Files Created:
-  • Sale listings: {result.sale_pages} pages (sale_{result.timestamp}_1.json through {result.sale_pages}.json)
-  • Rent listings: {result.rent_pages} pages (rent_{result.timestamp}_1.json through {result.rent_pages}.json)
-  • Total: {result.sale_pages + result.rent_pages} files uploaded to bronze/idealista/ folder
-  • Total size: ~{result.total_size_mb:.1f} MB
-
-Storage Location:
-  s3://prod-vlc-real-estate-analytics-listings/bronze/idealista/
-
-Next Execution:
-  Next Sunday at 12:00 UTC
-
-{'=' * 60}
-Automated notification from AWS Lambda
-"""
-
-        self._notifier.publish(subject, message)
-        logger.info("Successfully sent notification email")
 
 
 __all__: List[str] = [

@@ -145,8 +145,8 @@
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "${sns_topic_arn}",
-        "Subject": "Medallion pipeline succeeded",
-        "Message.$": "States.Format('Pipeline run SUCCEEDED\n\nExecution : {}\nStarted   : {}\n\nBronze  — {} sale pages, {} rent pages | {} MB collected | {}s\nSilver  — {} listings cleaned | {} Parquet file(s) written\nGold    — {} | {} bytes', $.summary.execution_name, $.summary.start_time, $.summary.bronze_data.sale_pages, $.summary.bronze_data.rent_pages, $.summary.bronze_data.total_size_mb, $.summary.bronze_data.duration_seconds, $.summary.silver_rows_written, $.summary.silver_parquet_files, $.summary.gold_key, $.summary.gold_bytes)"
+        "Subject": "${success_subject}",
+        "Message.$": "States.Format('Pipeline run SUCCEEDED\n\nEnvironment : ${environment_label}${test_mode ? " (test mode: 1 page per operation)" : ""}\nExecution   : {}\nStarted     : {}\n\nBronze  — {} sale pages, {} rent pages | {} MB collected | {}s\nSilver  — {} listings cleaned | {} Parquet file(s) written\nGold    — {} | {} bytes', $.summary.execution_name, $.summary.start_time, $.summary.bronze_data.sale_pages, $.summary.bronze_data.rent_pages, $.summary.bronze_data.total_size_mb, $.summary.bronze_data.duration_seconds, $.summary.silver_rows_written, $.summary.silver_parquet_files, $.summary.gold_key, $.summary.gold_bytes)"
       },
       "ResultPath": null,
       "Next": "PipelineSucceeded"
@@ -161,8 +161,8 @@
       "Resource": "arn:aws:states:::sns:publish",
       "Parameters": {
         "TopicArn": "${sns_topic_arn}",
-        "Subject": "Medallion pipeline failed",
-        "Message.$": "States.Format('Medallion pipeline execution {} failed. Check the Step Functions console and CloudWatch logs for details: /aws/vendedlogs/states/', $$.Execution.Name)"
+        "Subject": "${failure_subject}",
+        "Message.$": "States.Format('Medallion pipeline execution {} failed in ${environment_label}. Check the Step Functions console and CloudWatch logs for details: /aws/vendedlogs/states/', $$.Execution.Name)"
       },
       "ResultPath": null,
       "Next": "PipelineFailed"
