@@ -222,3 +222,7 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
 
 - **2026-10-24** — Plan created after the first `deploy-lambda.yml` run failed during the rollout of
   PR #44 (single pipeline email). Prod still needs a local `terraform apply` for PR #44.
+- **2026-10-24** — Reviewed: ⚠️ Changes Recommended (`dev/reviews/REVIEW-FEATURE-018.md`). The
+  technical plan (12 tasks, ~15.75 h) folds in all findings. Most notable: the boundary is derived
+  from the role inventory (H1), the plan role is created only after the credentials leave state
+  (H2), smoke runs are quota-aware (M2), and no `TF_VAR_*` variables are needed (M5).
