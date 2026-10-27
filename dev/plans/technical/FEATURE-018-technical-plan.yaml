@@ -30,7 +30,7 @@ technical_plan:
         formats and how to read the current prefix
         (gh api repos/<owner>/<repo>/actions/oidc/customization/sub). Apply the stack LOCALLY
         (never from CI). This alone unbreaks deploy-frontend.yml.
-      status: "not_started"
+      status: "in_progress"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: []

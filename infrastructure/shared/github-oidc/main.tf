@@ -31,8 +31,34 @@ data "aws_caller_identity" "current" {}
 # StringEquals on :aud ensures only sts.amazonaws.com audience tokens are
 # accepted (prevents confused-deputy attacks from other OIDC clients).
 # StringLike on :sub scopes the role to specific environments and the main
-# branch (used by the lambda deploy workflow which may not have an environment).
+# branch (used by workflows that run without an environment).
+#
+# GitHub issues the :sub claim in one of two formats:
+#   legacy    repo:<owner>/<repo>:<context>
+#   immutable repo:<owner>@<owner_id>/<repo>@<repo_id>:<context>
+# This repository uses immutable subjects. Both prefixes are trusted so the
+# role keeps working if the repository setting is switched back. Check the
+# current prefix with:
+#   gh api repos/<owner>/<repo>/actions/oidc/customization/sub
 # ---------------------------------------------------------------------------
+locals {
+  github_subject_prefixes = [
+    "repo:${var.github_org}/${var.github_repo}",
+    "repo:${var.github_org}@${var.github_owner_id}/${var.github_repo}@${var.github_repo_id}",
+  ]
+
+  github_deploy_subject_suffixes = [
+    ":environment:dev",
+    ":environment:prod",
+    ":ref:refs/heads/main",
+  ]
+
+  github_deploy_subjects = [
+    for pair in setproduct(local.github_subject_prefixes, local.github_deploy_subject_suffixes) :
+    join("", pair)
+  ]
+}
+
 data "aws_iam_policy_document" "github_actions_trust" {
   statement {
     sid     = "AllowGitHubActionsOIDC"
@@ -53,11 +79,7 @@ data "aws_iam_policy_document" "github_actions_trust" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values = [
-        "repo:${var.github_org}/${var.github_repo}:environment:dev",
-        "repo:${var.github_org}/${var.github_repo}:environment:prod",
-        "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/main",
-      ]
+      values   = local.github_deploy_subjects
     }
   }
 }
