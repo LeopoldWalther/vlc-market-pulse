@@ -1,0 +1,519 @@
+technical_plan:
+  metadata:
+    for_feature: "FEATURE-018"
+    title: "Working, secure Terraform deploys from GitHub Actions"
+    created_by: "/reviewer"
+    created_at: "2026-10-24"
+    version: "1.0"
+    total_tasks: 12
+    estimated_hours: 15.75
+    risk_level: "high"
+    critical_path: ["18.1", "18.2", "18.4", "18.5", "18.6", "18.7", "18.9", "18.11", "18.12"]
+    reviewed_plan: "dev/reviews/REVIEW-FEATURE-018.md"
+
+  validation:
+    required_checks:
+      - "terraform-validate"
+      - "workflow-consistency"
+    min_coverage: "n/a (infrastructure and workflows only; no application code)"
+
+  tasks:
+    - id: "18.1"
+      title: "Trust policy accepts GitHub immutable OIDC subjects"
+      description: >
+        In infrastructure/shared/github-oidc add variables github_owner_id (default "32717417") and
+        github_repo_id (default "1123272680"). Build a local list of both subject prefixes:
+        "repo:${github_org}/${github_repo}" (legacy) and
+        "repo:${github_org}@${github_owner_id}/${github_repo}@${github_repo_id}" (immutable), and
+        generate the existing three suffixes (:environment:dev, :environment:prod,
+        :ref:refs/heads/main) for each prefix. Update the trust-policy comment block to explain both
+        formats and how to read the current prefix
+        (gh api repos/<owner>/<repo>/actions/oidc/customization/sub). Apply the stack LOCALLY
+        (never from CI). This alone unbreaks deploy-frontend.yml.
+      status: "in_progress"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: []
+      branch: "feature/ci-terraform-deploy/18.1-oidc-immutable-subjects"
+      commit_message: "fix(infra): trust GitHub immutable OIDC subjects for the deploy role"
+      acceptance_criteria:
+        - "RED: run 40109988697 failed with 'Not authorized to perform sts:AssumeRoleWithWebIdentity' (recorded evidence)"
+        - "GREEN: local `terraform plan` in shared/github-oidc changes only aws_iam_role.github_actions_deploy assume_role_policy (1 to change, 0 add/destroy)"
+        - "GREEN: `aws iam get-role --role-name github-actions-deploy` lists 6 sub patterns (3 legacy + 3 immutable)"
+        - "GREEN: `gh workflow run deploy-frontend.yml -f environment=dev` succeeds"
+        - "GREEN: terraform fmt -check -recursive and terraform validate pass"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/variables.tf"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - ".github/**"
+      can_run_parallel_with: ["18.2"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/variables.tf"
+
+    - id: "18.2"
+      title: "Take Idealista credentials out of Terraform (state, vars, tfvars)"
+      description: >
+        PRE-CONDITION: the owner has applied PR #44 to prod locally (prod plan must be clean before
+        this task, so the diff contains only this change). In environments/dev/main.tf and
+        environments/prod/main.tf add two removed blocks (review L1):
+        from = module.idealista_secrets.aws_secretsmanager_secret_version.idealista_credentials_lvw
+        (and _pmv) with lifecycle { destroy = false }. Delete both aws_secretsmanager_secret_version
+        resources and the four idealista_api_* variables from modules/secrets, and the four
+        idealista_api_* variables and their module arguments from both environments. Bump
+        required_version to ">= 1.7, < 2.0" in modules/secrets and both environments. Delete
+        infrastructure/environments/dev/terraform.tfvars (it only repeats the pandas_layer_arn default;
+        review M5). Mark notification_email sensitive = true in both environments (log hygiene only).
+        Add a README section 'Rotating Idealista credentials' with the
+        `aws secretsmanager put-secret-value --secret-id <env>/idealista/<lvw|pmv>-api-credentials
+        --secret-string file://…` command and the expected JSON shape (api_key, api_secret, account).
+        Apply dev, then prod, LOCALLY without -var-file. Afterwards local secrets.tfvars files are
+        obsolete; tell the owner to delete them (they are gitignored, so do not touch them in git).
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: []
+      branch: "feature/ci-terraform-deploy/18.2-decouple-credentials"
+      commit_message: "refactor(infra): stop managing Idealista credential values in Terraform"
+      acceptance_criteria:
+        - "RED: `terraform state show module.idealista_secrets.aws_secretsmanager_secret_version.idealista_credentials_lvw` succeeds in dev and prod before the change"
+        - "GREEN: `terraform plan` (no -var-file) in dev and prod shows exactly 2 resources 'will no longer be managed by Terraform' and '0 to destroy'; no other changes"
+        - "GREEN: after apply, `terraform state list | grep secret_version` is empty in both envs"
+        - "GREEN: `aws secretsmanager describe-secret` shows the same AWSCURRENT VersionId before and after (record both in the progress log)"
+        - "GREEN: `terraform state pull | grep -c api_secret` returns 0 in both envs"
+        - "GREEN: one dev state-machine execution reaches SUCCEEDED (credentials still readable by the collector)"
+        - "GREEN: terraform fmt -check -recursive and terraform validate pass for dev and prod"
+      allowed_files:
+        - "infrastructure/modules/secrets/**"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/variables.tf"
+        - "infrastructure/environments/dev/terraform.tfvars"
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/variables.tf"
+        - "infrastructure/environments/*/versions.tf"
+        - "infrastructure/environments/*/providers.tf"
+        - "README.md"
+      forbidden_files:
+        - "infrastructure/shared/**"
+        - ".github/**"
+        - "**/secrets.tfvars"
+      can_run_parallel_with: ["18.1"]
+      reversible: false
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/modules/secrets/main.tf"
+        - "infrastructure/modules/secrets/variables.tf"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/variables.tf"
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/variables.tf"
+        - "README.md"
+
+    - id: "18.3"
+      title: "Retire deploy-lambda.yml, clean deploy-frontend.yml, pin actions to SHAs"
+      description: >
+        Delete .github/workflows/deploy-lambda.yml (superseded by 18.11). In deploy-frontend.yml
+        remove the 'Create secrets.tfvars' step (it only needs terraform output). Pin every `uses:` in
+        all workflows under .github/workflows to a full 40-char commit SHA with the tag as a trailing
+        comment (review M4), resolved via `gh api repos/<owner>/<action>/git/ref/tags/<tag>`
+        (dereference annotated tags). Run actionlint locally if available (review L3).
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: ["18.1"]
+      branch: "feature/ci-terraform-deploy/18.3-workflow-cleanup"
+      commit_message: "ci: retire broken lambda deploy workflow and pin actions to SHAs"
+      acceptance_criteria:
+        - "GREEN: `grep -rn 'uses:' .github/workflows | grep -vE '@[0-9a-f]{40}'` returns nothing"
+        - "GREEN: `grep -rn secrets.tfvars .github` returns nothing"
+        - "GREEN: deploy-frontend.yml for dev succeeds after merge"
+        - "GREEN: python-test, terraform-validate, workflow-consistency still pass on the PR"
+      allowed_files:
+        - ".github/workflows/**"
+      forbidden_files:
+        - "infrastructure/**"
+        - "src/**"
+      can_run_parallel_with: ["18.2", "18.4"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - ".github/workflows/deploy-frontend.yml"
+        - ".github/workflows/python-test.yml"
+        - ".github/workflows/node-test.yml"
+        - ".github/workflows/terraform-validate.yml"
+        - ".github/workflows/workflow-consistency.yml"
+
+    - id: "18.4"
+      title: "Permissions boundary policy derived from the workload-role inventory"
+      description: >
+        In shared/github-oidc add aws_iam_policy "vlc_workload_boundary" (name vlc-workload-boundary).
+        Its Allow statements are the UNION of every action in every aws_iam_role_policy under
+        infrastructure/modules/** (review H1): logs (incl. CreateLogDelivery, GetLogDelivery,
+        UpdateLogDelivery, DeleteLogDelivery, ListLogDeliveries, PutResourcePolicy,
+        DescribeResourcePolicies, DescribeLogGroups, StartQuery, GetQueryResults, StopQuery), s3
+        GetObject/PutObject/PutObjectAcl/ListBucket on the project listing buckets,
+        secretsmanager:GetSecretValue on */idealista/*, sns:Publish on *-idealista-notifications,
+        cloudwatch:PutMetricData/GetMetricData, ce:GetCostAndUsage, lambda:InvokeFunction on
+        dev-*/prod-* functions, states:StartExecution on *-medallion-pipeline. Resource scoping may be
+        broader than the inline policies (they still narrow it). Output its ARN. Add
+        dev/tools/iam_action_inventory.sh that prints the sorted unique action list from modules so
+        the check is repeatable. Apply locally.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.25
+      depends_on: ["18.1"]
+      branch: "feature/ci-terraform-deploy/18.4-workload-boundary"
+      commit_message: "feat(infra): add permissions boundary for workload roles"
+      acceptance_criteria:
+        - "RED: inventory script lists N actions; boundary policy does not exist (`aws iam get-policy` → NoSuchEntity)"
+        - "GREEN: every action printed by dev/tools/iam_action_inventory.sh is allowed by the boundary (checked with `aws iam simulate-custom-policy` per action, script output committed in the PR description)"
+        - "GREEN: local apply creates exactly 1 aws_iam_policy; trust/role unchanged"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/**"
+        - "dev/tools/iam_action_inventory.sh"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - ".github/**"
+      can_run_parallel_with: ["18.3"]
+      reversible: true
+      files_to_create:
+        - "dev/tools/iam_action_inventory.sh"
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/outputs.tf"
+
+    - id: "18.5"
+      title: "Attach the boundary to all six workload roles (dev, then prod)"
+      description: >
+        Add variable permissions_boundary_arn (string) to lambda_bronze, lambda_silver, lambda_gold,
+        lambda_pipeline_health and pipeline_orchestrator; set permissions_boundary on all six
+        aws_iam_role resources. In both environments resolve the ARN with
+        data "aws_iam_policy" "workload_boundary" { name = "vlc-workload-boundary" } (no remote-state
+        coupling to the shared stack) and pass it to every module. Apply dev locally, verify, then
+        prod. Rollback: remove permissions_boundary and re-apply.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["18.2", "18.4"]
+      branch: "feature/ci-terraform-deploy/18.5-attach-boundary"
+      commit_message: "feat(infra): constrain workload roles with the permissions boundary"
+      acceptance_criteria:
+        - "GREEN: dev plan updates exactly 6 aws_iam_role in place (permissions_boundary only)"
+        - "GREEN: after dev apply, one dev state-machine execution reaches SUCCEEDED"
+        - "GREEN: `aws lambda invoke --function-name dev-pipeline-health` returns statusCode 200 and the CloudWatch log has no AccessDenied (review H1)"
+        - "GREEN: same checks for prod: plan 6 in-place, `aws lambda invoke --function-name prod-pipeline-health` → 200; NO prod state-machine run (quota)"
+        - "GREEN: `aws iam get-role` for each of the 12 roles shows PermissionsBoundary = vlc-workload-boundary"
+      allowed_files:
+        - "infrastructure/modules/lambda_bronze/**"
+        - "infrastructure/modules/lambda_silver/**"
+        - "infrastructure/modules/lambda_gold/**"
+        - "infrastructure/modules/lambda_pipeline_health/**"
+        - "infrastructure/modules/pipeline_orchestrator/**"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/prod/main.tf"
+      forbidden_files:
+        - "infrastructure/shared/**"
+        - ".github/**"
+        - "src/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/modules/lambda_bronze/main.tf"
+        - "infrastructure/modules/lambda_bronze/variables.tf"
+        - "infrastructure/modules/lambda_silver/main.tf"
+        - "infrastructure/modules/lambda_silver/variables.tf"
+        - "infrastructure/modules/lambda_gold/main.tf"
+        - "infrastructure/modules/lambda_gold/variables.tf"
+        - "infrastructure/modules/lambda_pipeline_health/main.tf"
+        - "infrastructure/modules/lambda_pipeline_health/variables.tf"
+        - "infrastructure/modules/pipeline_orchestrator/main.tf"
+        - "infrastructure/modules/pipeline_orchestrator/variables.tf"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/prod/main.tf"
+
+    - id: "18.6"
+      title: "Read-only plan role; narrow the deploy role"
+      description: >
+        HARD PRE-CONDITION (review H2): 18.2 applied in dev AND prod. In shared/github-oidc add role
+        github-actions-plan. Trust: aud sts.amazonaws.com; sub in {<prefix>:pull_request,
+        <prefix>:ref:refs/heads/main} for both prefixes. Permissions: Get*/List*/Describe* for the
+        resource types in environments/* (lambda, iam role/policy reads, states, scheduler, events,
+        logs, s3 bucket config reads, cloudfront, acm, route53, sns, cloudwatch alarms,
+        secretsmanager DescribeSecret/GetResourcePolicy), plus s3:GetObject ONLY on
+        vlc-state/dev/* and vlc-state/prod/* state keys and s3:ListBucket on the state bucket. NO
+        s3:GetObjectVersion, NO s3:PutObject, NO secretsmanager:GetSecretValue. Determine the exact
+        state keys from environments/*/backend.tf. In the same task narrow github-actions-deploy:
+        state GetObject to the env keys only, drop LambdaUpdateFunctionCode and the DynamoDB lock
+        statement (review L2). Output the plan role ARN; set repo variable AWS_PLAN_ROLE_ARN with gh.
+        Apply locally.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.25
+      depends_on: ["18.2", "18.1"]
+      branch: "feature/ci-terraform-deploy/18.6-plan-role"
+      commit_message: "feat(infra): add read-only GitHub Actions plan role"
+      acceptance_criteria:
+        - "GREEN: `aws iam simulate-principal-policy` for github-actions-plan: Deny on s3:GetObjectVersion, s3:PutObject (state), secretsmanager:GetSecretValue, lambda:UpdateFunctionCode, iam:PutRolePolicy; Allow on s3:GetObject for the dev state key and lambda:GetFunction"
+        - "GREEN: simulation for github-actions-deploy: Deny s3:GetObject on vlc-state/shared/*; Deny lambda:UpdateFunctionCode"
+        - "GREEN: `gh variable list` shows AWS_PLAN_ROLE_ARN"
+        - "GREEN: deploy-frontend.yml for dev still succeeds"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/**"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - ".github/**"
+      can_run_parallel_with: ["18.7"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/outputs.tf"
+
+    - id: "18.7"
+      title: "Apply role with prefix-scoped writes and explicit deny guard rails"
+      description: >
+        HARD PRE-CONDITION: 18.2 and 18.5 applied in dev AND prod. Add role github-actions-apply.
+        Trust: sub in {<prefix>:environment:dev, <prefix>:environment:prod} for both prefixes. Allow:
+        write actions for every resource type in environments/* scoped by name (dev-*/prod-*
+        functions, roles, log groups, rules, schedules, state machines, SNS topics, project buckets,
+        secrets metadata), CloudFront/ACM (us-east-1)/Route53 change records on the hosted zone,
+        tag:* where required; IAM role writes only on role/dev-* and role/prod-* with
+        Condition StringEquals iam:PermissionsBoundary = vlc-workload-boundary ARN; iam:PassRole on
+        role/dev-*, role/prod-* with iam:PassedToService in [lambda.amazonaws.com,
+        states.amazonaws.com, scheduler.amazonaws.com]; state s3 Get/Put/Delete on env state keys and
+        their .tflock objects. Explicit Deny statements (review M1): iam:DeleteRolePermissionsBoundary;
+        iam:PutRolePermissionsBoundary unless boundary = vlc-workload-boundary; any iam:* on the
+        boundary policy and on role/github-actions-*; iam:CreatePolicy, iam:CreatePolicyVersion,
+        iam:AttachRolePolicy; secretsmanager:GetSecretValue and PutSecretValue; s3:* on state keys
+        outside vlc-state/dev/* and vlc-state/prod/*. Document the simulation matrix in
+        documentation/CI_CD.md. Set repo variable AWS_APPLY_ROLE_ARN. Apply locally. Expect to iterate
+        on missing read/tag actions in 18.11.
+      status: "not_started"
+      complexity: "high"
+      estimated_hours: 2.5
+      depends_on: ["18.4", "18.5"]
+      branch: "feature/ci-terraform-deploy/18.7-apply-role"
+      commit_message: "feat(infra): add boundary-guarded GitHub Actions apply role"
+      acceptance_criteria:
+        - "GREEN (Allow): lambda:UpdateFunctionConfiguration on prod-idealista-collector; states:UpdateStateMachine on dev-medallion-pipeline; iam:PutRolePolicy on role/dev-silver-cleaner-lambda-role; iam:CreateRole on role/dev-x WITH boundary context"
+        - "GREEN (Deny): iam:CreateRole on role/dev-x WITHOUT boundary; iam:UpdateAssumeRolePolicy on role/github-actions-deploy; iam:CreatePolicyVersion on vlc-workload-boundary; iam:DeleteRolePermissionsBoundary; iam:AttachRolePolicy; iam:PassRole to ec2.amazonaws.com; secretsmanager:GetSecretValue; s3:PutObject on vlc-state/shared/*"
+        - "GREEN: matrix and results recorded in documentation/CI_CD.md"
+        - "GREEN: `gh variable list` shows AWS_APPLY_ROLE_ARN"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/**"
+        - "documentation/CI_CD.md"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - ".github/**"
+      can_run_parallel_with: ["18.6"]
+      reversible: true
+      files_to_create:
+        - "documentation/CI_CD.md"
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/outputs.tf"
+
+    - id: "18.8"
+      title: "Protect the prod environment"
+      description: >
+        Using gh api: set environment prod required reviewers = LeopoldWalther, prevent self-review
+        off (solo maintainer), deployment_branch_policy custom with only `main`. Leave dev without
+        reviewers but restrict its deployment branches to `main` as well. Commit the exact gh
+        commands to documentation/CI_CD.md so the configuration is reproducible. No TF_VAR variables
+        are needed (review M5).
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.5
+      depends_on: []
+      branch: "feature/ci-terraform-deploy/18.8-environment-protection"
+      commit_message: "docs(ci): document GitHub environment protection for prod"
+      acceptance_criteria:
+        - "GREEN: `gh api repos/LeopoldWalther/vlc-market-pulse/environments/prod` shows protection_rules with type required_reviewers and branch_policy"
+        - "GREEN: a workflow_dispatch to environment prod from a non-main branch is rejected (verified in 18.12)"
+      allowed_files:
+        - "documentation/CI_CD.md"
+      forbidden_files:
+        - "infrastructure/**"
+        - ".github/**"
+      can_run_parallel_with: ["18.4", "18.6", "18.7"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "documentation/CI_CD.md"
+
+    - id: "18.9"
+      title: "Reusable _terraform.yml (plan|apply, silent plan, address-only summary)"
+      description: >
+        Create .github/workflows/_terraform.yml (on: workflow_call; inputs environment, mode
+        [plan|apply], role (plan|apply); outputs has_changes). permissions: id-token write, contents
+        read. concurrency: group terraform-${environment}, cancel-in-progress false. Steps (all actions
+        SHA-pinned): checkout → configure-aws-credentials with vars.AWS_PLAN_ROLE_ARN or
+        vars.AWS_APPLY_ROLE_ARN → setup-terraform 1.14.3 with terraform_wrapper: false (review M3) →
+        terraform init -input=false → `terraform plan -input=false -no-color -out=tfplan
+        ${mode == plan && '-lock=false' || ''} > /dev/null` (stderr kept) →
+        summary via `terraform show -json tfplan | jq -r '.resource_changes[] |
+        select(.change.actions != ["no-op"]) | "\(.change.actions|join(",")) \(.address)"'` written
+        to $GITHUB_STEP_SUMMARY and as an output → if mode == apply: terraform apply -input=false
+        -no-color tfplan > apply.log 2>&1; on failure print only lines matching '^Error' and the
+        following 5 lines. Never upload tfplan or JSON as an artifact.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["18.3"]
+      branch: "feature/ci-terraform-deploy/18.9-reusable-terraform-workflow"
+      commit_message: "ci: add reusable terraform plan/apply workflow"
+      acceptance_criteria:
+        - "GREEN: actionlint passes"
+        - "GREEN: grep confirms terraform_wrapper: false, '> /dev/null' on plan, no upload-artifact, all uses SHA-pinned"
+        - "GREEN: exercised end-to-end by 18.10 and 18.11"
+      allowed_files:
+        - ".github/workflows/_terraform.yml"
+      forbidden_files:
+        - "infrastructure/**"
+        - "src/**"
+      can_run_parallel_with: ["18.6", "18.7", "18.8"]
+      reversible: true
+      files_to_create:
+        - ".github/workflows/_terraform.yml"
+      files_to_modify: []
+
+    - id: "18.10"
+      title: "PR plan for dev and prod in terraform-validate.yml"
+      description: >
+        Add a job `plan` to terraform-validate.yml (needs: validate; matrix dev/prod; only when
+        github.event_name == 'pull_request' and the PR head repo is this repo) that calls
+        _terraform.yml with mode plan, role plan. Extend the existing PR comment to include the
+        address-only summary per environment (or 'No changes'). Also trigger the workflow on
+        src/etl/** changes, because Lambda zips are built from source.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: ["18.6", "18.9"]
+      branch: "feature/ci-terraform-deploy/18.10-pr-plan"
+      commit_message: "ci: post terraform plan summary for dev and prod on pull requests"
+      acceptance_criteria:
+        - "GREEN: the PR for this task itself shows a comment with dev and prod plan summaries"
+        - "GREEN: the job log contains no attribute values (spot-check: no 'arn:aws:sns', no email, no 'definition')"
+        - "GREEN: the plan job used github-actions-plan (CloudTrail AssumeRoleWithWebIdentity event or the configure-aws-credentials log line)"
+      allowed_files:
+        - ".github/workflows/terraform-validate.yml"
+      forbidden_files:
+        - "infrastructure/**"
+        - "src/**"
+      can_run_parallel_with: ["18.11"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - ".github/workflows/terraform-validate.yml"
+
+    - id: "18.11"
+      title: "terraform-deploy.yml: dev on merge, prod on approved dispatch, quota-aware smoke"
+      description: >
+        Create .github/workflows/terraform-deploy.yml. Triggers: push to main (paths
+        infrastructure/environments/**, infrastructure/modules/**, src/etl/**), and workflow_dispatch
+        with input environment [dev, prod]. Job apply: environment = target env (dev on push), calls
+        _terraform.yml mode apply, role apply. Job smoke (dev only, needs apply): use
+        dorny/paths-filter (SHA-pinned) or `git diff --name-only HEAD~1` to decide.
+        If the change touches src/etl/data_collection/**, infrastructure/modules/lambda_bronze/** or
+        infrastructure/modules/pipeline_orchestrator/**, start one dev-medallion-pipeline execution and
+        poll until it leaves RUNNING (timeout 10 min; fail unless SUCCEEDED). Otherwise invoke
+        dev-silver-cleaner, dev-gold-aggregator directly (no Idealista calls; review M2). Always invoke
+        dev-pipeline-health and require statusCode 200 (review H1). The smoke needs
+        states:StartExecution/DescribeExecution and lambda:InvokeFunction on dev-* resources. Add
+        these to the apply role in shared/github-oidc and apply locally. Iterate on apply-role
+        AccessDenied errors surfaced by the first dev apply (expected); each fix is a local apply of
+        shared/github-oidc in this task.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["18.7", "18.8", "18.9"]
+      branch: "feature/ci-terraform-deploy/18.11-deploy-workflow"
+      commit_message: "ci: apply terraform to dev on merge and to prod on approved dispatch"
+      acceptance_criteria:
+        - "GREEN: merging this task's PR triggers an apply to dev that succeeds"
+        - "GREEN: the smoke job runs the direct-invoke path (no bronze change) and passes"
+        - "GREEN: actionlint passes; all uses SHA-pinned"
+      allowed_files:
+        - ".github/workflows/terraform-deploy.yml"
+        - "infrastructure/shared/github-oidc/main.tf"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - "src/**"
+      can_run_parallel_with: ["18.10"]
+      reversible: true
+      files_to_create:
+        - ".github/workflows/terraform-deploy.yml"
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+
+    - id: "18.12"
+      title: "End-to-end verification and documentation"
+      description: >
+        Verify the full flow and document it. (1) Dispatch terraform-deploy for prod from main: it
+        waits for approval; approve; apply reports no changes or only expected ones. (2) Dispatch for
+        prod from a non-main branch: rejected by the environment branch rule. (3) deploy-frontend for
+        prod succeeds. Document in documentation/CI_CD.md: the flow (PR → plan, merge → dev,
+        dispatch + approve → prod), the three roles and what each may do, the one-off LOCAL steps
+        (shared/github-oidc applies, credential rotation), the quota budget for smoke runs, and why
+        logs show no plan details. Update the CLAUDE.md CI/CD table (remove deploy-lambda.yml, add
+        terraform-deploy.yml, terraform-validate.yml plan), the README deploy section, and remove the
+        secrets.tfvars instructions from documentation/DATA_COLLECTION_LAYER.md. Mark FEATURE-018
+        complete in the plan file and dev/plans/README.md.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1.5
+      depends_on: ["18.10", "18.11"]
+      branch: "feature/ci-terraform-deploy/18.12-e2e-and-docs"
+      commit_message: "docs: document the CI terraform deploy flow"
+      acceptance_criteria:
+        - "GREEN: prod dispatch run URL with approval recorded in the plan progress log"
+        - "GREEN: rejected non-main prod dispatch run URL recorded"
+        - "GREEN: `grep -rn 'deploy-lambda.yml\\|secrets.tfvars' CLAUDE.md README.md documentation` returns nothing"
+        - "GREEN: workflow-consistency passes with FEATURE-018 marked 🟢"
+      allowed_files:
+        - "documentation/**"
+        - "README.md"
+        - "CLAUDE.md"
+        - "dev/plans/FEATURE-018-ci-terraform-deploy.md"
+        - "dev/plans/README.md"
+        - "dev/plans/technical/FEATURE-018-technical-plan.yaml"
+      forbidden_files:
+        - "infrastructure/**"
+        - ".github/**"
+        - "src/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "documentation/CI_CD.md"
+        - "documentation/DATA_COLLECTION_LAYER.md"
+        - "README.md"
+        - "CLAUDE.md"
+        - "dev/plans/FEATURE-018-ci-terraform-deploy.md"
+        - "dev/plans/README.md"
+
+  git_workflow:
+    branch_root: "feature/ci-terraform-deploy"
+    commit_style: "One commit per task using the task commit_message"
+    merge_strategy: "One PR per task into main, merged before the next dependent task starts, so main always matches what is applied. Ordering gates: 18.6 and 18.7 only after 18.2 is applied in BOTH envs (review H2); 18.7 only after 18.5 is applied in both envs."
+    pre_pr_checks:
+      - "terraform-validate"
+      - "workflow-consistency"
+
+  notes:
+    - "All shared/github-oidc applies are LOCAL by design. CI must never be able to modify its own roles or the boundary."
+    - "Before 18.2: the owner must apply PR #44 to prod locally (prod state machine still has the old email subjects as of 2026-10-24)."
+    - "18.2 is irreversible in the sense that credential values leave Terraform; the secrets themselves stay in AWS. Rotation from then on: aws secretsmanager put-secret-value."
+    - "Idealista quota is shared between dev and prod (100 requests/month). Never run the prod state machine as a smoke test; never run more than one dev state-machine execution per task."
+    - "The state bucket has versioning enabled; old state versions still contain the plaintext credentials. No role other than the owner's may get s3:GetObjectVersion on it."
+    - "Do not touch stray files infrastructure/environments/dev/tfplan-health-fix and infrastructure/environments/prod/response.json."
