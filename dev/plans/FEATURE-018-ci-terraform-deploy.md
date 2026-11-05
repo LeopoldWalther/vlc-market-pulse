@@ -1,6 +1,6 @@
 # FEATURE-018 — Working, secure Terraform deploys from GitHub Actions
 
-**Status:** 🔵 Planned · **Effort:** M (~10–12h) · **Priority:** High
+**Status:** 🟡 In progress · **Effort:** M (~10–12h) · **Priority:** High
 **Branch root:** `feature/ci-terraform-deploy` · **Created:** 2026-10-24 · **Updated:** 2026-10-24
 
 > Authored by `/architect`. Reviewed by `/reviewer` (see `dev/reviews/REVIEW-FEATURE-018.md`).
@@ -226,3 +226,14 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   technical plan (12 tasks, ~15.75 h) folds in all findings. Most notable: the boundary is derived
   from the role inventory (H1), the plan role is created only after the credentials leave state
   (H2), smoke runs are quota-aware (M2), and no `TF_VAR_*` variables are needed (M5).
+- **2026-11-05** — 18.1 done (PR #45): trust policy applied locally with 6 `sub` patterns;
+  `deploy-frontend.yml` for dev succeeded (run 42058579146), so OIDC login from Actions works again.
+- **2026-11-05** — 18.2 done: credential values removed from Terraform via `removed` blocks
+  (`destroy = false`), applied locally in dev and prod without `-var-file`. Both plans: 2 objects
+  "no longer managed", 0 destroyed, plus 1 in-place update that only marks the SNS endpoint
+  sensitive. AWSCURRENT version ids unchanged — dev lvw `terraform-20260605104206897600000004`,
+  dev pmv `terraform-20260605104206879800000003`, prod lvw `terraform-20251229180110505200000003`,
+  prod pmv `terraform-20251229180110505300000004`. No `secret_version` left in either state; the
+  only remaining `api_secret` string in state is the collector source code inside `archive_file`
+  (a JSON key name, not a value). Dev execution `f018-credentials-check-1793903904` SUCCEEDED.
+  Local `secrets.tfvars` and `dev/terraform.tfvars` files are now obsolete (gitignored).

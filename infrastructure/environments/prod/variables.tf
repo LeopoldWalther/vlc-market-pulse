@@ -10,34 +10,12 @@ variable "environment" {
   default     = "prod"
 }
 
-variable "idealista_api_key_lvw" {
-  description = "Idealista API key for leopold.walther@gmail.com"
-  type        = string
-  sensitive   = true
-}
-
-variable "idealista_api_secret_lvw" {
-  description = "Idealista API secret for leopold.walther@gmail.com"
-  type        = string
-  sensitive   = true
-}
-
-variable "idealista_api_key_pmv" {
-  description = "Idealista API key for paulamarinvillar@gmail.com"
-  type        = string
-  sensitive   = true
-}
-
-variable "idealista_api_secret_pmv" {
-  description = "Idealista API secret for paulamarinvillar@gmail.com"
-  type        = string
-  sensitive   = true
-}
-
 variable "notification_email" {
-  description = "Email address to receive Lambda execution notifications"
+  description = "Email address to receive pipeline notifications"
   type        = string
-  default     = "leopold.walther@gmail.com"
+  # Not a secret, but keeps the address out of plan output and CI logs.
+  sensitive = true
+  default   = "leopold.walther@gmail.com"
 }
 
 variable "pandas_layer_arn" {

@@ -77,13 +77,25 @@ pre-commit install
 cd src/etl && pytest data_collection/tests/ data_processing/tests/ -v --cov
 ```
 
-Deploy per environment (needs a gitignored `secrets.tfvars` with your Idealista credentials):
+Deploy per environment:
 
 ```bash
 cd infrastructure/environments/dev   # or prod
 terraform init
-terraform apply -var-file="secrets.tfvars"
+terraform apply
 ```
+
+### Rotating Idealista credentials
+
+Terraform manages the Secrets Manager secrets but not their values, so no credential ever lands in the Terraform state or in CI. Set or rotate a value directly:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id <env>/idealista/<lvw|pmv>-api-credentials \
+  --secret-string file://credentials.json
+```
+
+`credentials.json` has the shape `{"api_key": "...", "api_secret": "...", "account": "<idealista account email>"}`. Delete the file afterwards; the collector picks up the new `AWSCURRENT` version on its next run.
 
 Each environment issues its own ACM certificate for its subdomain. The `leopoldwalther.com` domain itself is managed by the [`leopoldwalther-website`](https://github.com/LeopoldWalther/leopoldwalther-website) repository; this repository only writes records under `vlc-market-pulse.leopoldwalther.com` and `vlc-market-pulse-dev.leopoldwalther.com`.
 
