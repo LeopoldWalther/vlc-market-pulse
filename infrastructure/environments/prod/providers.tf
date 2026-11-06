@@ -1,7 +1,8 @@
 terraform {
 
-  # Require Terraform >=1.2 and <2.0 to avoid accidental incompatible major upgrades.
-  required_version = ">= 1.2, < 2.0"
+  # Require Terraform >=1.7 (removed blocks) and <2.0 to avoid accidental
+  # incompatible major upgrades.
+  required_version = ">= 1.7, < 2.0"
   required_providers {
     aws = {
       source = "hashicorp/aws"

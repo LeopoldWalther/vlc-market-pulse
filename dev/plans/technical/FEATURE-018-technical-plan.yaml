@@ -30,7 +30,7 @@ technical_plan:
         formats and how to read the current prefix
         (gh api repos/<owner>/<repo>/actions/oidc/customization/sub). Apply the stack LOCALLY
         (never from CI). This alone unbreaks deploy-frontend.yml.
-      status: "in_progress"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: []
@@ -74,7 +74,7 @@ technical_plan:
         --secret-string file://…` command and the expected JSON shape (api_key, api_secret, account).
         Apply dev, then prod, LOCALLY without -var-file. Afterwards local secrets.tfvars files are
         obsolete; tell the owner to delete them (they are gitignored, so do not touch them in git).
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: []

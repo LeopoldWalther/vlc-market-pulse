@@ -11,14 +11,29 @@ locals {
   frontend_domain = "vlc-market-pulse-dev.leopoldwalther.com"
 }
 
+# Credential values were previously written by Terraform. Forget those two
+# secret versions without deleting them: the values stay in Secrets Manager
+# and are rotated outside Terraform from now on.
+removed {
+  from = module.idealista_secrets.aws_secretsmanager_secret_version.idealista_credentials_lvw
+
+  lifecycle {
+    destroy = false
+  }
+}
+
+removed {
+  from = module.idealista_secrets.aws_secretsmanager_secret_version.idealista_credentials_pmv
+
+  lifecycle {
+    destroy = false
+  }
+}
+
 module "idealista_secrets" {
   source = "../../modules/secrets"
 
-  environment              = var.environment
-  idealista_api_key_lvw    = var.idealista_api_key_lvw
-  idealista_api_secret_lvw = var.idealista_api_secret_lvw
-  idealista_api_key_pmv    = var.idealista_api_key_pmv
-  idealista_api_secret_pmv = var.idealista_api_secret_pmv
+  environment = var.environment
 }
 
 module "idealista_notifications" {
