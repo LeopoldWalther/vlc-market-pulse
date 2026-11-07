@@ -237,3 +237,6 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   only remaining `api_secret` string in state is the collector source code inside `archive_file`
   (a JSON key name, not a value). Dev execution `f018-credentials-check-1793903904` SUCCEEDED.
   Local `secrets.tfvars` and `dev/terraform.tfvars` files are now obsolete (gitignored).
+- **2026-11-07** — 18.3 done: `deploy-lambda.yml` deleted, the obsolete `Create secrets.tfvars` step
+  removed from `deploy-frontend.yml`, every `uses:` pinned to a commit SHA with the release tag as a
+  comment. actionlint 1.7.7 (Docker) reports no findings.
