@@ -23,16 +23,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: eu-central-1
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '20'
           cache: 'npm'
@@ -45,19 +45,10 @@ jobs:
           npm test
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
         with:
           terraform_version: 1.14.3
           terraform_wrapper: false
-
-      - name: Create secrets.tfvars
-        run: |
-          cat > infrastructure/environments/${{ github.event.inputs.environment }}/secrets.tfvars << EOF
-          idealista_api_key_lvw    = "${{ secrets.LVW_API_KEY }}"
-          idealista_api_secret_lvw = "${{ secrets.LVW_API_SECRET }}"
-          idealista_api_key_pmv    = "${{ secrets.PMV_API_KEY }}"
-          idealista_api_secret_pmv = "${{ secrets.PMV_API_SECRET }}"
-          EOF
 
       - name: Terraform Init
         working-directory: infrastructure/environments/${{ github.event.inputs.environment }}

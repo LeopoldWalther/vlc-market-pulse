@@ -122,7 +122,7 @@ technical_plan:
         all workflows under .github/workflows to a full 40-char commit SHA with the tag as a trailing
         comment (review M4), resolved via `gh api repos/<owner>/<action>/git/ref/tags/<tag>`
         (dereference annotated tags). Run actionlint locally if available (review L3).
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["18.1"]
