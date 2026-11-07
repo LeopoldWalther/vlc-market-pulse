@@ -246,3 +246,8 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   `-gold-aggregator-lambda-role`, `-pipeline-health-lambda-role`,
   `-medallion-pipeline-sfn-role`, `-medallion-pipeline-scheduler-role`). Same for Lambda,
   log group and PassRole resources. The boundary is already scoped to project resource names.
+- **2026-11-07** — 18.4 done: boundary applied locally (`1 added`), ARN
+  `arn:aws:iam::063096286047:policy/vlc-workload-boundary`. `iam_action_inventory.sh --check`
+  → all 25 actions `allowed`, exit 0. Negative simulation: iam:CreateRole, iam:PutRolePolicy,
+  secretsmanager:PutSecretValue, s3:DeleteObject and lambda:InvokeFunction on a
+  `prod-vlc-market-oracle-*` function → `implicitDeny`.

@@ -163,7 +163,7 @@ technical_plan:
         broader than the inline policies (they still narrow it). Output its ARN. Add
         dev/tools/iam_action_inventory.sh that prints the sorted unique action list from modules so
         the check is repeatable. Apply locally.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.25
       depends_on: ["18.1"]
