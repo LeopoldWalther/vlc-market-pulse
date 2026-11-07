@@ -237,3 +237,12 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   only remaining `api_secret` string in state is the collector source code inside `archive_file`
   (a JSON key name, not a value). Dev execution `f018-credentials-check-1793903904` SUCCEEDED.
   Local `secrets.tfvars` and `dev/terraform.tfvars` files are now obsolete (gitignored).
+- **2026-11-07** — 18.4 code ready (boundary `vlc-workload-boundary`, inventory script with
+  `--check` simulation; inventory = 25 actions, RED: `get-policy` → NoSuchEntity). Local apply
+  pending. **Finding for 18.5/18.7:** the account also hosts another project's roles
+  (`dev-/prod-vlc-market-oracle-*`). The apply role must therefore NOT get IAM writes on
+  `role/dev-*` / `role/prod-*`; scope it to this project's six role names
+  (`<env>-idealista-collector-lambda-role`, `-silver-cleaner-lambda-role`,
+  `-gold-aggregator-lambda-role`, `-pipeline-health-lambda-role`,
+  `-medallion-pipeline-sfn-role`, `-medallion-pipeline-scheduler-role`). Same for Lambda,
+  log group and PassRole resources. The boundary is already scoped to project resource names.
