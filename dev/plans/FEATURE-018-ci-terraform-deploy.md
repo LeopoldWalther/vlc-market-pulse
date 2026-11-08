@@ -273,3 +273,8 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   1 change`. `simulate-custom-policy` against the planned documents: 15/15 cases as expected.
   Local apply pending (owner). Note for 18.10: the plan role cannot write the lock file, so PR
   plans must run with `-lock=false`.
+- **2026-11-08** — 18.6 done: applied locally (`2 added, 1 changed`). `AWS_PLAN_ROLE_ARN` set.
+  `simulate-principal-policy` on the live roles: plan → explicitDeny on GetObjectVersion/PutObject
+  (state) and GetSecretValue, implicitDeny on UpdateFunctionCode/PutRolePolicy, allowed on dev state
+  GetObject and GetFunction; deploy → implicitDeny on shared state and UpdateFunctionCode, allowed
+  on dev state. `deploy-frontend.yml` dev run 42501648924 succeeded with the narrowed deploy role.

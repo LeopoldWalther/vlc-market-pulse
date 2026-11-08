@@ -253,7 +253,7 @@ technical_plan:
         state GetObject to the env keys only, drop LambdaUpdateFunctionCode and the DynamoDB lock
         statement (review L2). Output the plan role ARN; set repo variable AWS_PLAN_ROLE_ARN with gh.
         Apply locally.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.25
       depends_on: ["18.2", "18.1"]
