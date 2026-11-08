@@ -42,3 +42,8 @@ variable "test_mode" {
   type        = bool
   default     = false
 }
+
+variable "permissions_boundary_arn" {
+  description = "ARN of the IAM permissions boundary (vlc-workload-boundary) attached to this module's role(s)."
+  type        = string
+}

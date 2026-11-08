@@ -1,3 +1,10 @@
+# Permissions boundary for every workload role. It is owned by the shared
+# github-oidc stack (applied locally); looked up by name so this environment
+# does not depend on that stack's remote state.
+data "aws_iam_policy" "workload_boundary" {
+  name = "vlc-workload-boundary"
+}
+
 module "listings_bucket" {
   source = "../../modules/s3"
 
@@ -39,6 +46,8 @@ module "idealista_notifications" {
 module "idealista_collector" {
   source = "../../modules/lambda_bronze"
 
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
+
   environment     = var.environment
   aws_region      = var.aws_region
   s3_bucket_name  = module.listings_bucket.listings_bucket_name
@@ -56,6 +65,8 @@ module "idealista_collector" {
 module "silver_cleaner" {
   source = "../../modules/lambda_silver"
 
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
+
   environment      = var.environment
   aws_region       = var.aws_region
   s3_bucket_name   = module.listings_bucket.listings_bucket_name
@@ -69,6 +80,8 @@ module "silver_cleaner" {
 
 module "gold_aggregator" {
   source = "../../modules/lambda_gold"
+
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
 
   environment      = var.environment
   aws_region       = var.aws_region
@@ -92,6 +105,8 @@ module "gold_aggregator" {
 module "pipeline_health" {
   source = "../../modules/lambda_pipeline_health"
 
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
+
   environment    = var.environment
   aws_region     = var.aws_region
   s3_bucket_name = module.listings_bucket.listings_bucket_name
@@ -112,6 +127,8 @@ module "pipeline_health" {
 # ---------------------------------------------------------------------------
 module "pipeline_orchestrator" {
   source = "../../modules/pipeline_orchestrator"
+
+  permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
 
   environment         = var.environment
   aws_region          = var.aws_region
