@@ -163,7 +163,7 @@ technical_plan:
         broader than the inline policies (they still narrow it). Output its ARN. Add
         dev/tools/iam_action_inventory.sh that prints the sorted unique action list from modules so
         the check is repeatable. Apply locally.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.25
       depends_on: ["18.1"]
@@ -197,7 +197,7 @@ technical_plan:
         data "aws_iam_policy" "workload_boundary" { name = "vlc-workload-boundary" } (no remote-state
         coupling to the shared stack) and pass it to every module. Apply dev locally, verify, then
         prod. Rollback: remove permissions_boundary and re-apply.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["18.2", "18.4"]
@@ -516,4 +516,5 @@ technical_plan:
     - "18.2 is irreversible in the sense that credential values leave Terraform; the secrets themselves stay in AWS. Rotation from then on: aws secretsmanager put-secret-value."
     - "Idealista quota is shared between dev and prod (100 requests/month). Never run the prod state machine as a smoke test; never run more than one dev state-machine execution per task."
     - "The state bucket has versioning enabled; old state versions still contain the plaintext credentials. No role other than the owner's may get s3:GetObjectVersion on it."
+    - "The AWS account also hosts another project (roles dev-/prod-vlc-market-oracle-*). 18.7 must scope IAM role writes, iam:PassRole, Lambda and log-group permissions to this project's explicit resource names, never to dev-*/prod-* wildcards (found during 18.4)."
     - "Do not touch stray files infrastructure/environments/dev/tfplan-health-fix and infrastructure/environments/prod/response.json."

@@ -213,3 +213,163 @@ resource "aws_iam_role_policy" "github_actions_deploy" {
   role   = aws_iam_role.github_actions_deploy.id
   policy = data.aws_iam_policy_document.github_actions_deploy.json
 }
+
+# ---------------------------------------------------------------------------
+# Permissions boundary for the workload roles (Lambda, Step Functions,
+# Scheduler) created by infrastructure/environments/*.
+#
+# Why: the CI apply role may create and change workload roles. A role it
+# creates must carry this boundary (enforced in the apply role's policy), so
+# even a malicious inline policy can never grant more than what is listed
+# here — in particular no IAM, no secret writes and nothing outside this
+# project's resources.
+#
+# The Allow list is the union of every action in the aws_iam_role_policy
+# resources under infrastructure/modules/ (dev/tools/iam_action_inventory.sh
+# prints it; `--check` simulates each action against the deployed policy).
+# Resource scoping is deliberately a little broader than the inline policies,
+# which still narrow it per role. It is limited to this project's resource
+# names because the account also hosts other dev-*/prod-* workloads.
+#
+# Applied LOCALLY only — CI must never be able to change its own guard rail.
+# ---------------------------------------------------------------------------
+locals {
+  account_id = data.aws_caller_identity.current.account_id
+
+  workload_functions = [
+    "idealista-collector",
+    "silver-cleaner",
+    "gold-aggregator",
+    "pipeline-health",
+  ]
+
+  workload_function_arns = flatten([
+    for env in ["dev", "prod"] : [
+      for fn in local.workload_functions : [
+        "arn:aws:lambda:*:${local.account_id}:function:${env}-${fn}",
+        "arn:aws:lambda:*:${local.account_id}:function:${env}-${fn}:*",
+      ]
+    ]
+  ])
+
+  workload_log_group_arns = flatten([
+    for env in ["dev", "prod"] : concat(
+      [for fn in local.workload_functions : "arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/${env}-${fn}:*"],
+      ["arn:aws:logs:*:${local.account_id}:log-group:/aws/vendedlogs/states/${env}-medallion-pipeline:*"],
+    )
+  ])
+}
+
+data "aws_iam_policy_document" "workload_boundary" {
+  # Lambda and Step Functions logging, plus Logs Insights queries run by the
+  # pipeline-health Lambda against the other functions' log groups.
+  statement {
+    sid    = "LogsOnProjectLogGroups"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:CreateLogStream",
+      "logs:PutLogEvents",
+      "logs:StartQuery",
+    ]
+    resources = local.workload_log_group_arns
+  }
+
+  # AWS only accepts Resource "*" for these: log delivery (Step Functions
+  # logging), resource policies, query results and log group discovery.
+  statement {
+    sid    = "LogsAccountLevel"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:DescribeLogGroups",
+      "logs:DescribeResourcePolicies",
+      "logs:GetLogDelivery",
+      "logs:GetQueryResults",
+      "logs:ListLogDeliveries",
+      "logs:PutResourcePolicy",
+      "logs:StopQuery",
+      "logs:UpdateLogDelivery",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid    = "ListingsBucketObjects"
+    effect = "Allow"
+    actions = [
+      "s3:GetObject",
+      "s3:PutObject",
+      "s3:PutObjectAcl",
+    ]
+    resources = [
+      "arn:aws:s3:::dev-vlc-real-estate-analytics-listings/*",
+      "arn:aws:s3:::prod-vlc-real-estate-analytics-listings/*",
+    ]
+  }
+
+  statement {
+    sid     = "ListingsBucketList"
+    effect  = "Allow"
+    actions = ["s3:ListBucket"]
+    resources = [
+      "arn:aws:s3:::dev-vlc-real-estate-analytics-listings",
+      "arn:aws:s3:::prod-vlc-real-estate-analytics-listings",
+    ]
+  }
+
+  # Read only. Secret values are written by the owner, never by a workload.
+  statement {
+    sid       = "IdealistaSecretsRead"
+    effect    = "Allow"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["arn:aws:secretsmanager:*:${local.account_id}:secret:*/idealista/*"]
+  }
+
+  statement {
+    sid       = "PipelineNotifications"
+    effect    = "Allow"
+    actions   = ["sns:Publish"]
+    resources = ["arn:aws:sns:*:${local.account_id}:*-idealista-notifications"]
+  }
+
+  # Metrics and Cost Explorer have no resource-level permissions.
+  statement {
+    sid    = "MetricsAndCost"
+    effect = "Allow"
+    actions = [
+      "cloudwatch:GetMetricData",
+      "cloudwatch:PutMetricData",
+      "ce:GetCostAndUsage",
+    ]
+    resources = ["*"]
+  }
+
+  # Step Functions invokes the stage Lambdas.
+  statement {
+    sid       = "InvokePipelineLambdas"
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = local.workload_function_arns
+  }
+
+  # EventBridge Scheduler starts the weekly pipeline run.
+  statement {
+    sid       = "StartPipeline"
+    effect    = "Allow"
+    actions   = ["states:StartExecution"]
+    resources = ["arn:aws:states:*:${local.account_id}:stateMachine:*-medallion-pipeline"]
+  }
+}
+
+resource "aws_iam_policy" "vlc_workload_boundary" {
+  name        = "vlc-workload-boundary"
+  description = "Permissions boundary for VLC Market Pulse workload roles (dev and prod)."
+  policy      = data.aws_iam_policy_document.workload_boundary.json
+
+  tags = {
+    Name      = "vlc-workload-boundary"
+    ManagedBy = "terraform"
+  }
+}

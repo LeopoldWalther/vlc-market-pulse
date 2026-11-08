@@ -242,8 +242,27 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   comment. actionlint 1.7.7 (Docker) reports no findings.
 - **2026-11-07** — 18.3 verified after merge: `deploy-frontend.yml` dev run 42408672849 succeeded
   with SHA-pinned actions.
+- **2026-11-07** — 18.4 code ready (boundary `vlc-workload-boundary`, inventory script with
+  `--check` simulation; inventory = 25 actions, RED: `get-policy` → NoSuchEntity). Local apply
+  pending. **Finding for 18.5/18.7:** the account also hosts another project's roles
+  (`dev-/prod-vlc-market-oracle-*`). The apply role must therefore NOT get IAM writes on
+  `role/dev-*` / `role/prod-*`; scope it to this project's six role names
+  (`<env>-idealista-collector-lambda-role`, `-silver-cleaner-lambda-role`,
+  `-gold-aggregator-lambda-role`, `-pipeline-health-lambda-role`,
+  `-medallion-pipeline-sfn-role`, `-medallion-pipeline-scheduler-role`). Same for Lambda,
+  log group and PassRole resources. The boundary is already scoped to project resource names.
+- **2026-11-07** — 18.4 done: boundary applied locally (`1 added`), ARN
+  `arn:aws:iam::063096286047:policy/vlc-workload-boundary`. `iam_action_inventory.sh --check`
+  → all 25 actions `allowed`, exit 0. Negative simulation: iam:CreateRole, iam:PutRolePolicy,
+  secretsmanager:PutSecretValue, s3:DeleteObject and lambda:InvokeFunction on a
+  `prod-vlc-market-oracle-*` function → `implicitDeny`.
 - **2026-11-07** — 18.5 dev applied: plan `0 add, 6 change, 0 destroy` (only
   `permissions_boundary`). All six dev roles carry `vlc-workload-boundary`. Dev execution
   `f018-boundary-check-1794081498` SUCCEEDED; `dev-pipeline-health` invoke → 200 (body 200); no
   `AccessDenied` in the collector, silver, gold or health logs. Prod plan identical
   (`6 to change`); prod apply pending (owner).
+- **2026-11-08** — 18.5 done: prod applied (`0 add, 6 change, 0 destroy`, only
+  `permissions_boundary`). All 12 project roles (dev + prod) carry `vlc-workload-boundary`;
+  the `*-vlc-market-oracle-*` roles are untouched. `prod-pipeline-health` invoke → 200, no
+  `AccessDenied`/errors in its log (overall `yellow` comes only from the `aws_cost` check). No prod
+  state-machine run (Idealista quota).
