@@ -92,11 +92,9 @@ data "aws_iam_policy_document" "github_actions_trust" {
 #   • S3 frontend asset buckets (dev + prod): PutObject, DeleteObject, ListBucket
 #     Bucket names follow the pattern: ${environment}-vlc-frontend-assets
 #   • CloudFront: CreateInvalidation (must target "*" — no resource-level ARNs)
-#   • Lambda collector functions (dev + prod): UpdateFunctionCode
-#   • Terraform remote state bucket: GetObject, ListBucket (for terraform output)
-#   • Terraform state lock table: DynamoDB GetItem, PutItem, DeleteItem
-#     (project currently uses use_lockfile = true / S3 native locking; included
-#     for forward-compatibility with any future DynamoDB-backed lock table)
+#   • Terraform remote state: GetObject on the dev/prod state keys only (for
+#     `terraform output`), ListBucket on the state bucket. The shared/github-oidc
+#     state is deliberately unreadable from CI.
 # ---------------------------------------------------------------------------
 data "aws_iam_policy_document" "github_actions_deploy" {
 
@@ -148,25 +146,14 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     resources = ["*"]
   }
 
-  # Lambda — update function code for the collector functions (dev + prod).
+  # Terraform remote state — needed for `terraform output` in CI steps.
+  # Scoped to the environment state keys: the shared/github-oidc state
+  # describes the CI roles themselves and is not needed by any workflow.
   statement {
-    sid     = "LambdaUpdateFunctionCode"
-    effect  = "Allow"
-    actions = ["lambda:UpdateFunctionCode"]
-    resources = [
-      "arn:aws:lambda:eu-central-1:${data.aws_caller_identity.current.account_id}:function:dev-idealista-collector",
-      "arn:aws:lambda:eu-central-1:${data.aws_caller_identity.current.account_id}:function:prod-idealista-collector",
-    ]
-  }
-
-  # Terraform remote state bucket — needed for `terraform output` in CI steps.
-  statement {
-    sid     = "TerraformStateGetObject"
-    effect  = "Allow"
-    actions = ["s3:GetObject"]
-    resources = [
-      "arn:aws:s3:::vlc-real-estate-analytics-tf-state/*",
-    ]
+    sid       = "TerraformStateGetObject"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = local.environment_state_object_arns
   }
 
   statement {
@@ -174,22 +161,6 @@ data "aws_iam_policy_document" "github_actions_deploy" {
     effect    = "Allow"
     actions   = ["s3:ListBucket"]
     resources = ["arn:aws:s3:::vlc-real-estate-analytics-tf-state"]
-  }
-
-  # Terraform state lock table — DynamoDB locking permissions.
-  # The project uses use_lockfile = true (S3 native locking) so no DynamoDB
-  # table is currently provisioned; included for forward-compatibility.
-  statement {
-    sid    = "TerraformStateLock"
-    effect = "Allow"
-    actions = [
-      "dynamodb:GetItem",
-      "dynamodb:PutItem",
-      "dynamodb:DeleteItem",
-    ]
-    resources = [
-      "arn:aws:dynamodb:eu-central-1:${data.aws_caller_identity.current.account_id}:table/vlc-real-estate-analytics-tf-lock",
-    ]
   }
 
 }
@@ -372,4 +343,175 @@ resource "aws_iam_policy" "vlc_workload_boundary" {
     Name      = "vlc-workload-boundary"
     ManagedBy = "terraform"
   }
+}
+
+# ---------------------------------------------------------------------------
+# Terraform state locations shared by the CI roles.
+#
+# CRITICAL: older object versions in the state bucket still contain the
+# Idealista credentials that Terraform managed before FEATURE-018 task 18.2.
+# No CI role may ever get s3:GetObjectVersion on this bucket; the plan role
+# denies it explicitly as defence in depth.
+# ---------------------------------------------------------------------------
+locals {
+  state_bucket_arn = "arn:aws:s3:::vlc-real-estate-analytics-tf-state"
+
+  environment_state_object_arns = [
+    "${local.state_bucket_arn}/vlc-state/dev/*",
+    "${local.state_bucket_arn}/vlc-state/prod/*",
+  ]
+}
+
+# ---------------------------------------------------------------------------
+# Read-only plan role — assumed by pull-request workflows to run
+# `terraform plan -lock=false` against dev and prod.
+#
+# Why a separate role: pull_request runs execute code from an unmerged
+# branch, so the role they get must not be able to change anything. It may
+# read resource configuration and the environment state, nothing else — no
+# state writes (hence -lock=false), no secret values, no old state versions.
+# ---------------------------------------------------------------------------
+locals {
+  github_plan_subjects = [
+    for pair in setproduct(local.github_subject_prefixes, [":pull_request", ":ref:refs/heads/main"]) :
+    join("", pair)
+  ]
+}
+
+data "aws_iam_policy_document" "github_actions_plan_trust" {
+  statement {
+    sid     = "AllowGitHubActionsOIDCPlan"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.github_plan_subjects
+    }
+  }
+}
+
+data "aws_iam_policy_document" "github_actions_plan" {
+
+  # Configuration reads for every resource type under infrastructure/environments
+  # and infrastructure/modules — what `terraform plan` needs to refresh state.
+  # Wildcard Get/List/Describe is acceptable here because none of these
+  # services expose secret material through those calls; the secret and S3
+  # object reads that would are excluded below.
+  statement {
+    sid    = "ReadResourceConfiguration"
+    effect = "Allow"
+    actions = [
+      "acm:DescribeCertificate",
+      "acm:GetCertificate",
+      "acm:ListCertificates",
+      "acm:ListTagsForCertificate",
+      "cloudfront:Get*",
+      "cloudfront:List*",
+      "cloudwatch:DescribeAlarms",
+      "cloudwatch:ListTagsForResource",
+      "events:Describe*",
+      "events:List*",
+      "iam:GetOpenIDConnectProvider",
+      "iam:GetPolicy",
+      "iam:GetPolicyVersion",
+      "iam:GetRole",
+      "iam:GetRolePolicy",
+      "iam:ListAttachedRolePolicies",
+      "iam:ListInstanceProfilesForRole",
+      "iam:ListPolicies",
+      "iam:ListPolicyVersions",
+      "iam:ListRolePolicies",
+      "iam:ListRoleTags",
+      "lambda:Get*",
+      "lambda:List*",
+      "logs:DescribeLogGroups",
+      "logs:ListTagsForResource",
+      "logs:ListTagsLogGroup",
+      "route53:Get*",
+      "route53:List*",
+      "s3:GetAccelerateConfiguration",
+      "s3:GetBucket*",
+      "s3:GetEncryptionConfiguration",
+      "s3:GetLifecycleConfiguration",
+      "s3:GetReplicationConfiguration",
+      "scheduler:Get*",
+      "scheduler:List*",
+      "secretsmanager:DescribeSecret",
+      "secretsmanager:GetResourcePolicy",
+      "secretsmanager:ListSecrets",
+      "sns:GetSubscriptionAttributes",
+      "sns:GetTopicAttributes",
+      "sns:ListSubscriptionsByTopic",
+      "sns:ListTagsForResource",
+      "states:Describe*",
+      "states:List*",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "TerraformStateRead"
+    effect    = "Allow"
+    actions   = ["s3:GetObject"]
+    resources = local.environment_state_object_arns
+  }
+
+  statement {
+    sid       = "TerraformStateBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [local.state_bucket_arn]
+  }
+
+  # Defence in depth: these must stay impossible even if an Allow above is
+  # widened by mistake later.
+  statement {
+    sid    = "DenyStateHistoryAndWrites"
+    effect = "Deny"
+    actions = [
+      "s3:GetObjectVersion",
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:DeleteObjectVersion",
+    ]
+    resources = ["${local.state_bucket_arn}/*"]
+  }
+
+  statement {
+    sid       = "DenySecretValues"
+    effect    = "Deny"
+    actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["*"]
+  }
+}
+
+resource "aws_iam_role" "github_actions_plan" {
+  name                 = "github-actions-plan"
+  assume_role_policy   = data.aws_iam_policy_document.github_actions_plan_trust.json
+  description          = "Assumed by GitHub Actions pull-request workflows via OIDC; read-only terraform plan."
+  max_session_duration = 3600
+
+  tags = {
+    Name      = "github-actions-plan"
+    ManagedBy = "terraform"
+  }
+}
+
+resource "aws_iam_role_policy" "github_actions_plan" {
+  name   = "github-actions-plan-policy"
+  role   = aws_iam_role.github_actions_plan.id
+  policy = data.aws_iam_policy_document.github_actions_plan.json
 }
