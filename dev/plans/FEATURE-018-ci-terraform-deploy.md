@@ -240,3 +240,10 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
 - **2026-11-07** — 18.3 done: `deploy-lambda.yml` deleted, the obsolete `Create secrets.tfvars` step
   removed from `deploy-frontend.yml`, every `uses:` pinned to a commit SHA with the release tag as a
   comment. actionlint 1.7.7 (Docker) reports no findings.
+- **2026-11-07** — 18.3 verified after merge: `deploy-frontend.yml` dev run 42408672849 succeeded
+  with SHA-pinned actions.
+- **2026-11-07** — 18.5 dev applied: plan `0 add, 6 change, 0 destroy` (only
+  `permissions_boundary`). All six dev roles carry `vlc-workload-boundary`. Dev execution
+  `f018-boundary-check-1794081498` SUCCEEDED; `dev-pipeline-health` invoke → 200 (body 200); no
+  `AccessDenied` in the collector, silver, gold or health logs. Prod plan identical
+  (`6 to change`); prod apply pending (owner).

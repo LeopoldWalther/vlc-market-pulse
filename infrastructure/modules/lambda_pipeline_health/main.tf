@@ -57,6 +57,8 @@ data "archive_file" "pipeline_health_lambda_zip" {
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "pipeline_health_lambda_role" {
   name = "${var.environment}-pipeline-health-lambda-role"
+  # Caps what any inline policy on this role can grant (see shared/github-oidc).
+  permissions_boundary = var.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

@@ -94,6 +94,8 @@ resource "aws_cloudwatch_log_group" "sfn_logs" {
 resource "aws_iam_role" "sfn_execution" {
   name        = "${var.environment}-medallion-pipeline-sfn-role"
   description = "Step Functions execution role for the medallion pipeline (${var.environment})."
+  # Caps what any inline policy on this role can grant (see shared/github-oidc).
+  permissions_boundary = var.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -209,6 +211,8 @@ resource "aws_scheduler_schedule" "weekly_pipeline" {
 resource "aws_iam_role" "scheduler_trigger" {
   name        = "${var.environment}-medallion-pipeline-scheduler-role"
   description = "EventBridge Scheduler role: starts the medallion pipeline state machine only."
+  # Caps what any inline policy on this role can grant (see shared/github-oidc).
+  permissions_boundary = var.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

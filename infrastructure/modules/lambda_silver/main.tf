@@ -59,6 +59,8 @@ data "archive_file" "silver_lambda_zip" {
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "silver_lambda_role" {
   name = "${var.environment}-silver-cleaner-lambda-role"
+  # Caps what any inline policy on this role can grant (see shared/github-oidc).
+  permissions_boundary = var.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"

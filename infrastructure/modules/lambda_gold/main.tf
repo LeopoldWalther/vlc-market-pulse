@@ -59,6 +59,8 @@ data "archive_file" "gold_lambda_zip" {
 # ---------------------------------------------------------------------------
 resource "aws_iam_role" "gold_lambda_role" {
   name = "${var.environment}-gold-aggregator-lambda-role"
+  # Caps what any inline policy on this role can grant (see shared/github-oidc).
+  permissions_boundary = var.permissions_boundary_arn
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
