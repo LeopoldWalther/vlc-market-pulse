@@ -12,3 +12,8 @@ output "github_actions_plan_role_arn" {
   description = "ARN of the read-only IAM role for pull-request terraform plans. Set as the AWS_PLAN_ROLE_ARN repository variable."
   value       = aws_iam_role.github_actions_plan.arn
 }
+
+output "github_actions_apply_role_arn" {
+  description = "ARN of the IAM role for terraform apply in the dev/prod environment jobs. Set as the AWS_APPLY_ROLE_ARN repository variable."
+  value       = aws_iam_role.github_actions_apply.arn
+}
