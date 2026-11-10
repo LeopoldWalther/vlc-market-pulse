@@ -287,3 +287,6 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   name. Guard-rail deny on the boundary policy / CI roles excludes `iam:Get*`/`iam:List*`, because
   the environments look the boundary up by name. `simulate_apply_role.py --plan`: 25/25 as expected
   (matrix in `documentation/CI_CD.md`). Plan `11 to add`. Local apply pending (owner).
+- **2026-11-10** — 18.7 done: applied locally (`11 added`), role
+  `arn:aws:iam::063096286047:role/github-actions-apply`. `simulate_apply_role.py --role
+  github-actions-apply` against the deployed role: 25/25 as expected. `AWS_APPLY_ROLE_ARN` set.
