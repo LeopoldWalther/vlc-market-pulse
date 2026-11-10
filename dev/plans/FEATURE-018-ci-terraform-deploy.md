@@ -290,3 +290,7 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
 - **2026-11-10** — 18.7 done: applied locally (`11 added`), role
   `arn:aws:iam::063096286047:role/github-actions-apply`. `simulate_apply_role.py --role
   github-actions-apply` against the deployed role: 25/25 as expected. `AWS_APPLY_ROLE_ARN` set.
+- **2026-11-10** — 18.8 done: `prod` → `required_reviewers` (LeopoldWalther, self-review allowed)
+  + custom branch policy `main`; `dev` → no reviewers, custom branch policy `main`. Verified via
+  `gh api .../environments/{dev,prod}` and `.../deployment-branch-policies`. Commands documented in
+  `documentation/CI_CD.md`. Rejection of a non-main dispatch is verified in 18.12.

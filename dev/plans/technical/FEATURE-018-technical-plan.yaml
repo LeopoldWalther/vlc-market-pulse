@@ -330,7 +330,7 @@ technical_plan:
         reviewers but restrict its deployment branches to `main` as well. Commit the exact gh
         commands to documentation/CI_CD.md so the configuration is reproducible. No TF_VAR variables
         are needed (review M5).
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.5
       depends_on: []
