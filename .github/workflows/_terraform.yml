@@ -1,0 +1,156 @@
+name: Terraform (reusable)
+
+# Reusable plan/apply for one environment stack (FEATURE-018).
+#
+# Output discipline: the plan is written to a binary plan file and its text
+# output is discarded, because attribute values (ARNs, the notification email,
+# state machine definitions) would otherwise end up in public job logs. Only
+# "<actions> <address>" lines are published. The plan file and its JSON are
+# never uploaded as artifacts.
+#
+# Roles (see documentation/CI_CD.md):
+#   plan  → github-actions-plan, read-only, runs without a GitHub environment
+#           (its OIDC subject is pull_request / ref:refs/heads/main) and
+#           therefore with -lock=false
+#   apply → github-actions-apply, trusted only for environment:dev|prod, so the
+#           job binds to the GitHub environment (prod requires approval)
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Environment stack: dev or prod"
+        required: true
+        type: string
+      mode:
+        description: "plan or apply"
+        required: true
+        type: string
+      role:
+        description: "AWS role to assume: plan (read-only) or apply"
+        required: true
+        type: string
+    outputs:
+      has_changes:
+        description: "'true' when the plan contains at least one change"
+        value: ${{ jobs.terraform.outputs.has_changes }}
+      summary:
+        description: "Address-only plan summary ('<actions> <address>' per line, or 'No changes')"
+        value: ${{ jobs.terraform.outputs.summary }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform:
+    name: ${{ inputs.mode }} ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    # Only the apply role needs the environment-bound OIDC subject; binding the
+    # plan job would change its subject and break the plan role's trust.
+    environment: ${{ inputs.role == 'apply' && inputs.environment || '' }}
+    concurrency:
+      group: terraform-${{ inputs.environment }}
+      cancel-in-progress: false
+    outputs:
+      has_changes: ${{ steps.summary.outputs.has_changes }}
+      summary: ${{ steps.summary.outputs.summary }}
+    defaults:
+      run:
+        working-directory: infrastructure/environments/${{ inputs.environment }}
+
+    steps:
+      - name: Validate inputs
+        working-directory: .
+        env:
+          ENVIRONMENT: ${{ inputs.environment }}
+          MODE: ${{ inputs.mode }}
+          ROLE: ${{ inputs.role }}
+        run: |
+          case "$ENVIRONMENT" in dev|prod) ;; *) echo "::error::environment must be dev or prod"; exit 1 ;; esac
+          case "$MODE" in plan|apply) ;; *) echo "::error::mode must be plan or apply"; exit 1 ;; esac
+          case "$ROLE" in plan|apply) ;; *) echo "::error::role must be plan or apply"; exit 1 ;; esac
+          if [ "$MODE" = "apply" ] && [ "$ROLE" != "apply" ]; then
+            echo "::error::mode apply requires role apply"; exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ inputs.role == 'apply' && vars.AWS_APPLY_ROLE_ARN || vars.AWS_PLAN_ROLE_ARN }}
+          role-session-name: gha-terraform-${{ inputs.mode }}-${{ inputs.environment }}-${{ github.run_id }}
+          aws-region: eu-central-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: 1.14.3
+          # The wrapper echoes stdout into the log and step outputs, which
+          # would defeat the silent plan below.
+          terraform_wrapper: false
+
+      # requests.zip is gitignored (*.zip). Its aws_lambda_layer_version has no
+      # source_code_hash, so a rebuilt archive does not show up as a change; it
+      # only has to exist. Built from Linux wheels with the versions of the
+      # deployed layer.
+      - name: Build requests layer
+        working-directory: src/etl/lambda_layers/requests
+        run: |
+          if [ -f requests.zip ]; then exit 0; fi
+          python3 -m pip install --quiet --disable-pip-version-check --target build/python \
+            --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: \
+            requests==2.32.5 urllib3==2.6.2 idna==3.11 certifi==2025.11.12 charset-normalizer==3.4.4
+          (cd build && zip -qr ../requests.zip python)
+          rm -rf build
+
+      - name: Terraform init
+        run: terraform init -input=false -no-color
+
+      - name: Terraform plan (silent)
+        env:
+          LOCK_FLAG: ${{ inputs.mode == 'plan' && '-lock=false' || '' }}
+        # stdout is discarded on purpose (attribute values); stderr is kept so
+        # errors stay visible.
+        run: terraform plan -input=false -no-color -out=tfplan ${LOCK_FLAG:+"$LOCK_FLAG"} > /dev/null
+
+      - name: Plan summary (addresses only)
+        id: summary
+        run: |
+          terraform show -json tfplan \
+            | jq -r '.resource_changes[]? | select(.change.actions != ["no-op"]) | "\(.change.actions | join(",")) \(.address)"' \
+            > summary.txt
+          if [ -s summary.txt ]; then has_changes=true; else has_changes=false; echo "No changes" > summary.txt; fi
+          {
+            echo "### Terraform ${{ inputs.mode }} — ${{ inputs.environment }}"
+            echo '```'
+            cat summary.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "has_changes=$has_changes"
+            delimiter="EOF_$(openssl rand -hex 8)"
+            echo "summary<<$delimiter"
+            cat summary.txt
+            echo "$delimiter"
+          } >> "$GITHUB_OUTPUT"
+          rm -f summary.txt
+
+      - name: Terraform apply
+        if: inputs.mode == 'apply' && steps.summary.outputs.has_changes == 'true'
+        # The full apply log can contain attribute values; on failure only the
+        # error blocks are printed.
+        run: |
+          if ! terraform apply -input=false -no-color tfplan > apply.log 2>&1; then
+            grep -A5 '^Error' apply.log || echo "::error::terraform apply failed without an Error block"
+            rm -f apply.log
+            exit 1
+          fi
+          grep -E '^Apply complete' apply.log || true
+          rm -f apply.log
+
+      - name: Remove plan file
+        if: always()
+        run: rm -f tfplan
