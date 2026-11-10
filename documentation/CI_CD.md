@@ -21,6 +21,51 @@ Each subject is trusted in both GitHub formats — legacy
 `repo:<owner>@<owner_id>/<repo>@<repo_id>:<context>` (this repository uses the
 immutable one; check with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`).
 
+## GitHub environments
+
+The apply role trusts only jobs bound to the `dev` or `prod` environment, so the
+environment rules are the last gate before a CI apply:
+
+| Environment | Required reviewers | Deployment branches |
+|---|---|---|
+| `dev` | none | `main` only |
+| `prod` | `LeopoldWalther` (self-review allowed — solo maintainer) | `main` only |
+
+A job targeting `prod` waits for approval in the Actions UI; a job from any
+other branch is rejected before it gets an OIDC token. No `TF_VAR_*` variables
+are needed — the environments hold no Terraform input.
+
+Reproduce the configuration (owner, `gh` authenticated as repository admin):
+
+```bash
+R=repos/LeopoldWalther/vlc-market-pulse
+OWNER_ID=$(gh api user --jq .id)
+
+gh api -X PUT $R/environments/prod --input - <<JSON
+{"wait_timer":0,"prevent_self_review":false,
+ "reviewers":[{"type":"User","id":$OWNER_ID}],
+ "deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+JSON
+
+gh api -X PUT $R/environments/dev --input - <<JSON
+{"wait_timer":0,"reviewers":[],
+ "deployment_branch_policy":{"protected_branches":false,"custom_branch_policies":true}}
+JSON
+
+for env in dev prod; do
+  gh api -X POST $R/environments/$env/deployment-branch-policies -f name=main -f type=branch
+done
+```
+
+Check:
+
+```bash
+gh api repos/LeopoldWalther/vlc-market-pulse/environments/prod \
+  --jq '[.protection_rules[].type], .deployment_branch_policy'
+gh api repos/LeopoldWalther/vlc-market-pulse/environments/prod/deployment-branch-policies \
+  --jq '[.branch_policies[].name]'
+```
+
 ## Apply role design
 
 The AWS account also hosts other projects whose resources share the `dev-` /
