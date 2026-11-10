@@ -278,3 +278,12 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   (state) and GetSecretValue, implicitDeny on UpdateFunctionCode/PutRolePolicy, allowed on dev state
   GetObject and GetFunction; deploy → implicitDeny on shared state and UpdateFunctionCode, allowed
   on dev state. `deploy-frontend.yml` dev run 42501648924 succeeded with the narrowed deploy role.
+- **2026-11-10** — 18.7 code ready: role `github-actions-apply` (trust `environment:dev|prod`), five
+  managed policies (read, iam, compute, platform, guard-rails; the single allow document was 13.5k
+  chars, over the 6,144 managed-policy limit). Writes scoped to this project's explicit names —
+  the account also hosts `*-vlc-market-oracle-*` and `vlc-housing-silver-*`. **Deviation from the
+  technical plan:** no `role/dev-*` / `role/prod-*` wildcards, so the acceptance case "CreateRole on
+  role/dev-x WITH boundary → Allow" is now an expected Deny; the allow case uses a project role
+  name. Guard-rail deny on the boundary policy / CI roles excludes `iam:Get*`/`iam:List*`, because
+  the environments look the boundary up by name. `simulate_apply_role.py --plan`: 25/25 as expected
+  (matrix in `documentation/CI_CD.md`). Plan `11 to add`. Local apply pending (owner).

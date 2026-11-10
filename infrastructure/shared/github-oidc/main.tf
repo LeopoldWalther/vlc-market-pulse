@@ -371,6 +371,58 @@ locals {
 # read resource configuration and the environment state, nothing else — no
 # state writes (hence -lock=false), no secret values, no old state versions.
 # ---------------------------------------------------------------------------
+# Configuration reads `terraform plan` needs to refresh every resource type
+# under infrastructure/environments and infrastructure/modules. Shared by the
+# plan and the apply role so both see the same infrastructure.
+locals {
+  terraform_read_actions = [
+    "acm:DescribeCertificate",
+    "acm:GetCertificate",
+    "acm:ListCertificates",
+    "acm:ListTagsForCertificate",
+    "cloudfront:Get*",
+    "cloudfront:List*",
+    "cloudwatch:DescribeAlarms",
+    "cloudwatch:ListTagsForResource",
+    "events:Describe*",
+    "events:List*",
+    "iam:GetOpenIDConnectProvider",
+    "iam:GetPolicy",
+    "iam:GetPolicyVersion",
+    "iam:GetRole",
+    "iam:GetRolePolicy",
+    "iam:ListAttachedRolePolicies",
+    "iam:ListInstanceProfilesForRole",
+    "iam:ListPolicies",
+    "iam:ListPolicyVersions",
+    "iam:ListRolePolicies",
+    "iam:ListRoleTags",
+    "lambda:Get*",
+    "lambda:List*",
+    "logs:DescribeLogGroups",
+    "logs:ListTagsForResource",
+    "logs:ListTagsLogGroup",
+    "route53:Get*",
+    "route53:List*",
+    "s3:GetAccelerateConfiguration",
+    "s3:GetBucket*",
+    "s3:GetEncryptionConfiguration",
+    "s3:GetLifecycleConfiguration",
+    "s3:GetReplicationConfiguration",
+    "scheduler:Get*",
+    "scheduler:List*",
+    "secretsmanager:DescribeSecret",
+    "secretsmanager:GetResourcePolicy",
+    "secretsmanager:ListSecrets",
+    "sns:GetSubscriptionAttributes",
+    "sns:GetTopicAttributes",
+    "sns:ListSubscriptionsByTopic",
+    "sns:ListTagsForResource",
+    "states:Describe*",
+    "states:List*",
+  ]
+}
+
 locals {
   github_plan_subjects = [
     for pair in setproduct(local.github_subject_prefixes, [":pull_request", ":ref:refs/heads/main"]) :
@@ -411,54 +463,9 @@ data "aws_iam_policy_document" "github_actions_plan" {
   # services expose secret material through those calls; the secret and S3
   # object reads that would are excluded below.
   statement {
-    sid    = "ReadResourceConfiguration"
-    effect = "Allow"
-    actions = [
-      "acm:DescribeCertificate",
-      "acm:GetCertificate",
-      "acm:ListCertificates",
-      "acm:ListTagsForCertificate",
-      "cloudfront:Get*",
-      "cloudfront:List*",
-      "cloudwatch:DescribeAlarms",
-      "cloudwatch:ListTagsForResource",
-      "events:Describe*",
-      "events:List*",
-      "iam:GetOpenIDConnectProvider",
-      "iam:GetPolicy",
-      "iam:GetPolicyVersion",
-      "iam:GetRole",
-      "iam:GetRolePolicy",
-      "iam:ListAttachedRolePolicies",
-      "iam:ListInstanceProfilesForRole",
-      "iam:ListPolicies",
-      "iam:ListPolicyVersions",
-      "iam:ListRolePolicies",
-      "iam:ListRoleTags",
-      "lambda:Get*",
-      "lambda:List*",
-      "logs:DescribeLogGroups",
-      "logs:ListTagsForResource",
-      "logs:ListTagsLogGroup",
-      "route53:Get*",
-      "route53:List*",
-      "s3:GetAccelerateConfiguration",
-      "s3:GetBucket*",
-      "s3:GetEncryptionConfiguration",
-      "s3:GetLifecycleConfiguration",
-      "s3:GetReplicationConfiguration",
-      "scheduler:Get*",
-      "scheduler:List*",
-      "secretsmanager:DescribeSecret",
-      "secretsmanager:GetResourcePolicy",
-      "secretsmanager:ListSecrets",
-      "sns:GetSubscriptionAttributes",
-      "sns:GetTopicAttributes",
-      "sns:ListSubscriptionsByTopic",
-      "sns:ListTagsForResource",
-      "states:Describe*",
-      "states:List*",
-    ]
+    sid       = "ReadResourceConfiguration"
+    effect    = "Allow"
+    actions   = local.terraform_read_actions
     resources = ["*"]
   }
 
@@ -514,4 +521,558 @@ resource "aws_iam_role_policy" "github_actions_plan" {
   name   = "github-actions-plan-policy"
   role   = aws_iam_role.github_actions_plan.id
   policy = data.aws_iam_policy_document.github_actions_plan.json
+}
+
+# ---------------------------------------------------------------------------
+# Apply role — assumed only by jobs bound to the GitHub `dev` or `prod`
+# environment (prod requires a reviewer, see documentation/CI_CD.md) to run
+# `terraform apply` for infrastructure/environments/*.
+#
+# Scoping rule: writes are granted on this project's explicit resource names
+# only. The AWS account also hosts other projects (`*-vlc-market-oracle-*`,
+# `vlc-housing-silver-*`) whose names share the `dev-`/`prod-` prefixes, so
+# `dev-*` / `prod-*` wildcards would hand CI control over them.
+#
+# Guard rails (explicit Deny, cannot be undone by any Allow):
+#   • every role it creates or edits must carry vlc-workload-boundary, and the
+#     boundary can never be removed or swapped
+#   • no IAM writes on the CI roles, the OIDC provider or the boundary policy
+#   • no customer-managed policies, no policy attachments (inline only)
+#   • no secret values, no state history, no shared/github-oidc state
+#   • the listings buckets (the collected data) can never be deleted
+# ---------------------------------------------------------------------------
+locals {
+  environments       = ["dev", "prod"]
+  aws_region         = "eu-central-1"
+  route53_zone_id    = "Z001078818QR783M1TOKB" # leopoldwalther.com
+  boundary_policy_id = "arn:aws:iam::${local.account_id}:policy/vlc-workload-boundary"
+
+  workload_role_suffixes = [
+    "idealista-collector-lambda-role",
+    "silver-cleaner-lambda-role",
+    "gold-aggregator-lambda-role",
+    "pipeline-health-lambda-role",
+    "medallion-pipeline-sfn-role",
+    "medallion-pipeline-scheduler-role",
+  ]
+
+  workload_role_arns = [
+    for pair in setproduct(local.environments, local.workload_role_suffixes) :
+    "arn:aws:iam::${local.account_id}:role/${pair[0]}-${pair[1]}"
+  ]
+
+  apply_function_arns = [
+    for pair in setproduct(local.environments, local.workload_functions) :
+    "arn:aws:lambda:${local.aws_region}:${local.account_id}:function:${pair[0]}-${pair[1]}"
+  ]
+
+  apply_layer_arns = flatten([
+    for env in local.environments : [
+      "arn:aws:lambda:${local.aws_region}:${local.account_id}:layer:${env}-requests-layer",
+      "arn:aws:lambda:${local.aws_region}:${local.account_id}:layer:${env}-requests-layer:*",
+    ]
+  ])
+
+  apply_log_group_arns = flatten([
+    for env in local.environments : concat(
+      [for fn in local.workload_functions : "arn:aws:logs:${local.aws_region}:${local.account_id}:log-group:/aws/lambda/${env}-${fn}"],
+      [for fn in local.workload_functions : "arn:aws:logs:${local.aws_region}:${local.account_id}:log-group:/aws/lambda/${env}-${fn}:*"],
+      [
+        "arn:aws:logs:${local.aws_region}:${local.account_id}:log-group:/aws/vendedlogs/states/${env}-medallion-pipeline",
+        "arn:aws:logs:${local.aws_region}:${local.account_id}:log-group:/aws/vendedlogs/states/${env}-medallion-pipeline:*",
+      ],
+    )
+  ])
+
+  apply_event_rule_arns = [
+    for pair in setproduct(local.environments, local.workload_functions) :
+    "arn:aws:events:${local.aws_region}:${local.account_id}:rule/${pair[0]}-${pair[1]}-weekly"
+  ]
+
+  apply_schedule_arns = [
+    for env in local.environments :
+    "arn:aws:scheduler:${local.aws_region}:${local.account_id}:schedule/default/${env}-medallion-pipeline-weekly"
+  ]
+
+  apply_state_machine_arns = flatten([
+    for env in local.environments : [
+      "arn:aws:states:${local.aws_region}:${local.account_id}:stateMachine:${env}-medallion-pipeline",
+      "arn:aws:states:${local.aws_region}:${local.account_id}:stateMachine:${env}-medallion-pipeline:*",
+    ]
+  ])
+
+  apply_alarm_arns = flatten([
+    for env in local.environments : [
+      "arn:aws:cloudwatch:${local.aws_region}:${local.account_id}:alarm:${env}-silver-cleaner-errors",
+      "arn:aws:cloudwatch:${local.aws_region}:${local.account_id}:alarm:${env}-gold-aggregator-errors",
+    ]
+  ])
+
+  apply_topic_arns = flatten([
+    for env in local.environments : [
+      "arn:aws:sns:${local.aws_region}:${local.account_id}:${env}-idealista-notifications",
+      "arn:aws:sns:${local.aws_region}:${local.account_id}:${env}-idealista-notifications:*",
+    ]
+  ])
+
+  listings_bucket_arns = [for env in local.environments : "arn:aws:s3:::${env}-vlc-real-estate-analytics-listings"]
+  frontend_bucket_arns = [for env in local.environments : "arn:aws:s3:::${env}-vlc-frontend-assets"]
+
+  apply_secret_arns = flatten([
+    for env in local.environments : [
+      "arn:aws:secretsmanager:${local.aws_region}:${local.account_id}:secret:${env}/idealista/lvw-api-credentials-*",
+      "arn:aws:secretsmanager:${local.aws_region}:${local.account_id}:secret:${env}/idealista/pmv-api-credentials-*",
+    ]
+  ])
+
+  github_apply_subjects = [
+    for pair in setproduct(local.github_subject_prefixes, [":environment:dev", ":environment:prod"]) :
+    join("", pair)
+  ]
+}
+
+data "aws_iam_policy_document" "github_actions_apply_trust" {
+  statement {
+    sid     = "AllowGitHubActionsOIDCApply"
+    effect  = "Allow"
+    actions = ["sts:AssumeRoleWithWebIdentity"]
+
+    principals {
+      type        = "Federated"
+      identifiers = [aws_iam_openid_connect_provider.github_actions.arn]
+    }
+
+    condition {
+      test     = "StringEquals"
+      variable = "token.actions.githubusercontent.com:aud"
+      values   = ["sts.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "token.actions.githubusercontent.com:sub"
+      values   = local.github_apply_subjects
+    }
+  }
+}
+
+# Allow statements — what `terraform apply` needs for the environment stacks.
+# Split across managed policies (read, iam, compute, platform, guard rails) because a single
+# managed policy is capped at 6,144 characters.
+# Part 1 — configuration reads and the environment state.
+data "aws_iam_policy_document" "github_actions_apply_read" {
+
+  statement {
+    sid       = "ReadResourceConfiguration"
+    effect    = "Allow"
+    actions   = local.terraform_read_actions
+    resources = ["*"]
+  }
+
+  # State read/write incl. the S3-native lock file (<key>.tflock).
+  statement {
+    sid       = "TerraformStateReadWrite"
+    effect    = "Allow"
+    actions   = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+    resources = local.environment_state_object_arns
+  }
+
+  statement {
+    sid       = "TerraformStateBucketList"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = [local.state_bucket_arn]
+  }
+}
+
+# Part 2 — the six workload roles of each environment.
+data "aws_iam_policy_document" "github_actions_apply_iam" {
+
+  # CRITICAL: a role can only be created, given an inline policy or a new
+  # boundary when that boundary is vlc-workload-boundary. This caps whatever
+  # CI writes into a workload role at the boundary's permissions.
+  statement {
+    sid       = "WorkloadRoleWritesWithBoundary"
+    effect    = "Allow"
+    actions   = ["iam:CreateRole", "iam:PutRolePolicy", "iam:PutRolePermissionsBoundary"]
+    resources = local.workload_role_arns
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.boundary_policy_id]
+    }
+  }
+
+  statement {
+    sid    = "WorkloadRoleMaintenance"
+    effect = "Allow"
+    actions = [
+      "iam:DeleteRole",
+      "iam:DeleteRolePolicy",
+      "iam:TagRole",
+      "iam:UntagRole",
+      "iam:UpdateAssumeRolePolicy",
+      "iam:UpdateRole",
+      "iam:UpdateRoleDescription",
+    ]
+    resources = local.workload_role_arns
+  }
+
+  statement {
+    sid       = "PassWorkloadRoles"
+    effect    = "Allow"
+    actions   = ["iam:PassRole"]
+    resources = local.workload_role_arns
+
+    condition {
+      test     = "StringEquals"
+      variable = "iam:PassedToService"
+      values   = ["lambda.amazonaws.com", "states.amazonaws.com", "scheduler.amazonaws.com"]
+    }
+  }
+}
+
+# Part 3 — Lambda functions, layers and their log groups.
+data "aws_iam_policy_document" "github_actions_apply_compute" {
+
+  statement {
+    sid    = "LambdaFunctions"
+    effect = "Allow"
+    actions = [
+      "lambda:AddPermission",
+      "lambda:CreateFunction",
+      "lambda:DeleteFunction",
+      "lambda:DeleteFunctionConcurrency",
+      "lambda:PublishVersion",
+      "lambda:PutFunctionConcurrency",
+      "lambda:RemovePermission",
+      "lambda:TagResource",
+      "lambda:UntagResource",
+      "lambda:UpdateFunctionCode",
+      "lambda:UpdateFunctionConfiguration",
+    ]
+    resources = local.apply_function_arns
+  }
+
+  statement {
+    sid       = "LambdaLayers"
+    effect    = "Allow"
+    actions   = ["lambda:PublishLayerVersion", "lambda:DeleteLayerVersion"]
+    resources = local.apply_layer_arns
+  }
+
+  statement {
+    sid    = "LogGroups"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogGroup",
+      "logs:DeleteLogGroup",
+      "logs:DeleteRetentionPolicy",
+      "logs:PutRetentionPolicy",
+      "logs:TagLogGroup",
+      "logs:TagResource",
+      "logs:UntagLogGroup",
+      "logs:UntagResource",
+    ]
+    resources = local.apply_log_group_arns
+  }
+
+  # Step Functions logging configuration: the caller of CreateStateMachine /
+  # UpdateStateMachine needs these vended-log actions, which AWS only
+  # authorises on "*".
+  statement {
+    sid    = "StateMachineLogDelivery"
+    effect = "Allow"
+    actions = [
+      "logs:CreateLogDelivery",
+      "logs:DeleteLogDelivery",
+      "logs:DescribeResourcePolicies",
+      "logs:GetLogDelivery",
+      "logs:ListLogDeliveries",
+      "logs:PutResourcePolicy",
+      "logs:UpdateLogDelivery",
+    ]
+    resources = ["*"]
+  }
+}
+
+# Allow statements, part 4 — orchestration, notifications, storage and the
+# frontend edge (split only to stay below the managed-policy size limit).
+data "aws_iam_policy_document" "github_actions_apply_platform" {
+
+  statement {
+    sid    = "StateMachines"
+    effect = "Allow"
+    actions = [
+      "states:CreateStateMachine",
+      "states:DeleteStateMachine",
+      "states:PublishStateMachineVersion",
+      "states:TagResource",
+      "states:UntagResource",
+      "states:UpdateStateMachine",
+      "states:ValidateStateMachineDefinition",
+    ]
+    resources = local.apply_state_machine_arns
+  }
+
+  statement {
+    sid       = "Schedules"
+    effect    = "Allow"
+    actions   = ["scheduler:CreateSchedule", "scheduler:DeleteSchedule", "scheduler:UpdateSchedule"]
+    resources = local.apply_schedule_arns
+  }
+
+  statement {
+    sid    = "EventRules"
+    effect = "Allow"
+    actions = [
+      "events:DeleteRule",
+      "events:DisableRule",
+      "events:EnableRule",
+      "events:PutRule",
+      "events:PutTargets",
+      "events:RemoveTargets",
+      "events:TagResource",
+      "events:UntagResource",
+    ]
+    resources = local.apply_event_rule_arns
+  }
+
+  statement {
+    sid       = "Alarms"
+    effect    = "Allow"
+    actions   = ["cloudwatch:DeleteAlarms", "cloudwatch:PutMetricAlarm", "cloudwatch:TagResource", "cloudwatch:UntagResource"]
+    resources = local.apply_alarm_arns
+  }
+
+  statement {
+    sid    = "NotificationTopics"
+    effect = "Allow"
+    actions = [
+      "sns:CreateTopic",
+      "sns:DeleteTopic",
+      "sns:SetSubscriptionAttributes",
+      "sns:SetTopicAttributes",
+      "sns:Subscribe",
+      "sns:TagResource",
+      "sns:Unsubscribe",
+      "sns:UntagResource",
+    ]
+    resources = local.apply_topic_arns
+  }
+
+  # Bucket configuration only — no object access on the listings buckets.
+  statement {
+    sid    = "ProjectBucketConfiguration"
+    effect = "Allow"
+    actions = [
+      "s3:CreateBucket",
+      "s3:DeleteBucketPolicy",
+      "s3:PutBucketOwnershipControls",
+      "s3:PutBucketPolicy",
+      "s3:PutBucketPublicAccessBlock",
+      "s3:PutBucketTagging",
+      "s3:PutBucketVersioning",
+      "s3:PutEncryptionConfiguration",
+    ]
+    resources = concat(local.listings_bucket_arns, local.frontend_bucket_arns)
+  }
+
+  # The frontend asset buckets use force_destroy, so replacing one needs object
+  # deletes. The listings buckets never get this.
+  statement {
+    sid       = "FrontendBucketLifecycle"
+    effect    = "Allow"
+    actions   = ["s3:DeleteBucket", "s3:DeleteObject", "s3:DeleteObjectVersion", "s3:ListBucketVersions"]
+    resources = concat(local.frontend_bucket_arns, [for arn in local.frontend_bucket_arns : "${arn}/*"])
+  }
+
+  # Secret metadata only; values are rotated by the owner (see README).
+  statement {
+    sid       = "SecretMetadata"
+    effect    = "Allow"
+    actions   = ["secretsmanager:CreateSecret", "secretsmanager:DeleteSecret", "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:UpdateSecret"]
+    resources = local.apply_secret_arns
+  }
+
+  # CloudFront has no name-based ARNs and new resources get random IDs, so
+  # writes cannot be scoped by name. Only this project uses CloudFront in the
+  # account (checked 2026-11-10).
+  statement {
+    sid    = "CloudFront"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateCachePolicy",
+      "cloudfront:CreateDistribution",
+      "cloudfront:CreateOriginAccessControl",
+      "cloudfront:DeleteCachePolicy",
+      "cloudfront:DeleteDistribution",
+      "cloudfront:DeleteOriginAccessControl",
+      "cloudfront:TagResource",
+      "cloudfront:UntagResource",
+      "cloudfront:UpdateCachePolicy",
+      "cloudfront:UpdateDistribution",
+      "cloudfront:UpdateOriginAccessControl",
+    ]
+    resources = ["*"]
+  }
+
+  # ACM certificates for CloudFront live in us-east-1.
+  statement {
+    sid       = "AcmCertificates"
+    effect    = "Allow"
+    actions   = ["acm:AddTagsToCertificate", "acm:DeleteCertificate", "acm:RemoveTagsFromCertificate", "acm:RequestCertificate"]
+    resources = ["arn:aws:acm:us-east-1:${local.account_id}:certificate/*"]
+  }
+
+  # DNS changes only for this project's records in leopoldwalther.com: the
+  # frontend aliases and their ACM validation records.
+  statement {
+    sid       = "DnsRecords"
+    effect    = "Allow"
+    actions   = ["route53:ChangeResourceRecordSets"]
+    resources = ["arn:aws:route53:::hostedzone/${local.route53_zone_id}"]
+
+    condition {
+      test     = "ForAllValues:StringLike"
+      variable = "route53:ChangeResourceRecordSetsNormalizedRecordNames"
+      values   = ["vlc-market-pulse.leopoldwalther.com", "vlc-market-pulse-dev.leopoldwalther.com", "*.vlc-market-pulse.leopoldwalther.com", "*.vlc-market-pulse-dev.leopoldwalther.com"]
+    }
+
+    # ForAllValues passes vacuously when the key is missing; require it.
+    condition {
+      test     = "Null"
+      variable = "route53:ChangeResourceRecordSetsNormalizedRecordNames"
+      values   = ["false"]
+    }
+  }
+}
+
+# Deny guard rails (review M1). Evaluated before any Allow, so a later
+# widening of the allow policy cannot switch them off.
+data "aws_iam_policy_document" "github_actions_apply_deny" {
+
+  statement {
+    sid       = "DenyBoundaryRemoval"
+    effect    = "Deny"
+    actions   = ["iam:DeleteRolePermissionsBoundary"]
+    resources = ["*"]
+  }
+
+  # Negated operators match when the key is missing, so this also denies
+  # creating a role without any boundary.
+  statement {
+    sid       = "DenyForeignBoundary"
+    effect    = "Deny"
+    actions   = ["iam:CreateRole", "iam:PutRolePermissionsBoundary", "iam:PutRolePolicy"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringNotEquals"
+      variable = "iam:PermissionsBoundary"
+      values   = [local.boundary_policy_id]
+    }
+  }
+
+  # Reads stay allowed: the environment stacks look the boundary up by name.
+  statement {
+    sid         = "DenyTouchingCiIdentity"
+    effect      = "Deny"
+    not_actions = ["iam:Get*", "iam:List*"]
+    resources = [
+      local.boundary_policy_id,
+      "arn:aws:iam::${local.account_id}:role/github-actions-*",
+      aws_iam_openid_connect_provider.github_actions.arn,
+    ]
+  }
+
+  statement {
+    sid    = "DenyManagedPolicies"
+    effect = "Deny"
+    actions = [
+      "iam:AttachRolePolicy",
+      "iam:CreatePolicy",
+      "iam:CreatePolicyVersion",
+      "iam:DeletePolicy",
+      "iam:DeletePolicyVersion",
+      "iam:SetDefaultPolicyVersion",
+    ]
+    resources = ["*"]
+  }
+
+  statement {
+    sid       = "DenySecretValues"
+    effect    = "Deny"
+    actions   = ["secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+    resources = ["*"]
+  }
+
+  # CRITICAL: old state versions still contain plaintext credentials.
+  statement {
+    sid       = "DenyStateHistory"
+    effect    = "Deny"
+    actions   = ["s3:DeleteObjectVersion", "s3:GetObjectVersion"]
+    resources = ["${local.state_bucket_arn}/*"]
+  }
+
+  statement {
+    sid       = "DenySharedState"
+    effect    = "Deny"
+    actions   = ["s3:*"]
+    resources = ["${local.state_bucket_arn}/vlc-state/shared/*"]
+  }
+
+  statement {
+    sid       = "DenyStateBucketConfiguration"
+    effect    = "Deny"
+    actions   = ["s3:DeleteBucket", "s3:DeleteBucketPolicy", "s3:PutBucketPolicy", "s3:PutBucketVersioning", "s3:PutLifecycleConfiguration"]
+    resources = [local.state_bucket_arn]
+  }
+
+  statement {
+    sid       = "DenyListingsBucketDeletion"
+    effect    = "Deny"
+    actions   = ["s3:DeleteBucket"]
+    resources = local.listings_bucket_arns
+  }
+}
+
+resource "aws_iam_role" "github_actions_apply" {
+  name                 = "github-actions-apply"
+  assume_role_policy   = data.aws_iam_policy_document.github_actions_apply_trust.json
+  description          = "Assumed by GitHub Actions dev/prod environment jobs via OIDC; terraform apply for the environment stacks."
+  max_session_duration = 3600
+
+  tags = {
+    Name      = "github-actions-apply"
+    ManagedBy = "terraform"
+  }
+}
+
+# Allow and guard-rail documents of the apply role, attached as managed
+# policies (inline policies share a 10,240-character budget per role).
+locals {
+  github_actions_apply_policies = {
+    read        = { doc = data.aws_iam_policy_document.github_actions_apply_read.json, purpose = "configuration reads and environment state" }
+    iam         = { doc = data.aws_iam_policy_document.github_actions_apply_iam.json, purpose = "boundary-guarded workload role writes" }
+    compute     = { doc = data.aws_iam_policy_document.github_actions_apply_compute.json, purpose = "Lambda functions, layers and log groups" }
+    platform    = { doc = data.aws_iam_policy_document.github_actions_apply_platform.json, purpose = "orchestration, SNS, S3, secret metadata, CloudFront, ACM, DNS" }
+    guard-rails = { doc = data.aws_iam_policy_document.github_actions_apply_deny.json, purpose = "explicit deny guard rails" }
+  }
+}
+
+resource "aws_iam_policy" "github_actions_apply" {
+  for_each = local.github_actions_apply_policies
+
+  name        = "github-actions-apply-${each.key}"
+  description = "GitHub Actions apply role: ${each.value.purpose}."
+  policy      = each.value.doc
+}
+
+resource "aws_iam_role_policy_attachment" "github_actions_apply" {
+  for_each = aws_iam_policy.github_actions_apply
+
+  role       = aws_iam_role.github_actions_apply.name
+  policy_arn = each.value.arn
 }
