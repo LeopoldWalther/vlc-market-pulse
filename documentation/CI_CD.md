@@ -70,7 +70,7 @@ python simulate_apply_role.py --plan apply.json            # before apply
 python simulate_apply_role.py --role github-actions-apply  # after apply
 ```
 
-Result (2026-11-10, planned and deployed policies identical):
+Result (2026-11-10, `--plan` and `--role github-actions-apply` identical, 25/25):
 
 | Action | Resource | Expected | Result |
 |---|---|---|---|

@@ -296,7 +296,7 @@ technical_plan:
         outside vlc-state/dev/* and vlc-state/prod/*. Document the simulation matrix in
         documentation/CI_CD.md. Set repo variable AWS_APPLY_ROLE_ARN. Apply locally. Expect to iterate
         on missing read/tag actions in 18.11.
-      status: "not_started"
+      status: "done"
       complexity: "high"
       estimated_hours: 2.5
       depends_on: ["18.4", "18.5"]
