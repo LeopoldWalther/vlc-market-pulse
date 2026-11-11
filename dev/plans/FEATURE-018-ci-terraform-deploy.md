@@ -300,3 +300,10 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   deployed versions (no `source_code_hash` on the layer, so no diff). The deployed layer was built
   on macOS (darwin `.so` for `charset_normalizer`; Lambda uses the pure-Python fallback). Local
   `terraform.tfvars` only repeat defaults, so CI needs no inputs.
+- **2026-11-11** — 18.10 first CI plan (run 43082451617) ran with `github-actions-plan`, logs clean
+  (no SNS ARN, email, definition or secret keys), but proposed to **create** both buckets and
+  recreate bucket policies/PAB/encryption in dev and prod (local plan: no changes). Cause: the AWS
+  provider checks bucket existence with HeadBucket = `s3:ListBucket`, which neither the plan nor
+  the apply role had on the project buckets — a CI apply would have tried to recreate them. Fix:
+  `ProjectBucketExistence` (`s3:ListBucket` on the 4 project buckets) in both roles; new matrix
+  case. Also fixed: the untracked layer directory does not exist in a fresh checkout.

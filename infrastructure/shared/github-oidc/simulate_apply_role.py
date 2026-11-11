@@ -57,6 +57,12 @@ CASES: List[Tuple[str, str, List[str], str]] = [
     ("iam:GetPolicy", BOUNDARY, [], "allow"),
     ("s3:PutObject", f"{STATE}/vlc-state/prod/terraform.tfstate.tflock", [], "allow"),
     (
+        "s3:ListBucket",
+        "arn:aws:s3:::prod-vlc-real-estate-analytics-listings",
+        [],
+        "allow",
+    ),
+    (
         "route53:ChangeResourceRecordSets",
         "arn:aws:route53:::hostedzone/Z001078818QR783M1TOKB",
         [
