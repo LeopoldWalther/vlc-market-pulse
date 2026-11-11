@@ -394,7 +394,7 @@ technical_plan:
         _terraform.yml with mode plan, role plan. Extend the existing PR comment to include the
         address-only summary per environment (or 'No changes'). Also trigger the workflow on
         src/etl/** changes, because Lambda zips are built from source.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["18.6", "18.9"]

@@ -307,3 +307,6 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   the apply role had on the project buckets — a CI apply would have tried to recreate them. Fix:
   `ProjectBucketExistence` (`s3:ListBucket` on the 4 project buckets) in both roles; new matrix
   case. Also fixed: the untracked layer directory does not exist in a fresh checkout.
+- **2026-11-11** — 18.10 done: role fix applied locally (`0 add, 2 change`), apply matrix 26/26.
+  PR #54 re-run 43082855043: dev and prod plan **No changes**, single PR comment updated, logs contain no
+  SNS ARN / email / definition, `role/github-actions-plan` assumed.
