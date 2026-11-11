@@ -294,3 +294,9 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   + custom branch policy `main`; `dev` → no reviewers, custom branch policy `main`. Verified via
   `gh api .../environments/{dev,prod}` and `.../deployment-branch-policies`. Commands documented in
   `documentation/CI_CD.md`. Rejection of a non-main dispatch is verified in 18.12.
+- **2026-11-10** — 18.9 done: `.github/workflows/_terraform.yml` (PR #53). actionlint clean; grep
+  checks pass (wrapper off, silent plan, no artifacts, SHA-pinned). **Finding:** `requests.zip` is
+  gitignored and missing in CI checkouts — the workflow builds it from Linux wheels with the
+  deployed versions (no `source_code_hash` on the layer, so no diff). The deployed layer was built
+  on macOS (darwin `.so` for `charset_normalizer`; Lambda uses the pure-Python fallback). Local
+  `terraform.tfvars` only repeat defaults, so CI needs no inputs.

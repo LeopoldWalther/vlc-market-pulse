@@ -21,6 +21,20 @@ Each subject is trusted in both GitHub formats — legacy
 `repo:<owner>@<owner_id>/<repo>@<repo_id>:<context>` (this repository uses the
 immutable one; check with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub`).
 
+## Workflows
+
+| Workflow | Trigger | Role | What it does |
+|---|---|---|---|
+| `terraform-validate.yml` | PR / push to `main` touching `infrastructure/**`, `src/etl/**` | `github-actions-plan` (PR only) | fmt + validate; on PRs a read-only plan for dev and prod and one PR comment with the address-only summary |
+| `_terraform.yml` | `workflow_call` | plan or apply | reusable plan/apply for one environment (see below) |
+| `deploy-frontend.yml` | manual | `github-actions-deploy` | upload the frontend, invalidate CloudFront |
+
+`_terraform.yml` never publishes attribute values: the plan's text output is
+discarded, only `<actions> <address>` lines go to the step summary / outputs,
+an apply log is reduced to its `Error` blocks, and the plan file is deleted (no
+artifacts). It builds the gitignored `requests.zip` layer from Linux wheels when
+it is missing.
+
 ## GitHub environments
 
 The apply role trusts only jobs bound to the `dev` or `prod` environment, so the

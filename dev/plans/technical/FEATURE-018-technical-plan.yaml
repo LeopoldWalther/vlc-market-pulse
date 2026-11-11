@@ -365,7 +365,7 @@ technical_plan:
         to $GITHUB_STEP_SUMMARY and as an output → if mode == apply: terraform apply -input=false
         -no-color tfplan > apply.log 2>&1; on failure print only lines matching '^Error' and the
         following 5 lines. Never upload tfplan or JSON as an artifact.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["18.3"]
