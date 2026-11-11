@@ -4,7 +4,10 @@ on:
   pull_request:
     paths:
       - 'infrastructure/**'
+      # Lambda zips are built from source, so code changes change the plan.
+      - 'src/etl/**'
       - '.github/workflows/terraform-validate.yml'
+      - '.github/workflows/_terraform.yml'
   push:
     branches:
       - main
@@ -50,31 +53,73 @@ jobs:
         run: terraform validate -no-color
         working-directory: infrastructure/environments/${{ matrix.environment }}
 
-      - name: Comment PR
+  # Read-only plan per environment (FEATURE-018). Two explicit jobs instead of a
+  # matrix: outputs of a matrix of reusable-workflow calls overwrite each other.
+  # Fork PRs get no OIDC token for this repository, so they are skipped.
+  plan-dev:
+    name: Plan dev
+    needs: validate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      environment: dev
+      mode: plan
+      role: plan
+
+  plan-prod:
+    name: Plan prod
+    needs: validate
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      id-token: write
+      contents: read
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      environment: prod
+      mode: plan
+      role: plan
+
+  comment:
+    name: Comment PR
+    needs: [validate, plan-dev, plan-prod]
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post or update the plan comment
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7.1.0
-        if: github.event_name == 'pull_request'
+        env:
+          VALIDATE_RESULT: ${{ needs.validate.result }}
+          DEV_RESULT: ${{ needs.plan-dev.result }}
+          DEV_SUMMARY: ${{ needs.plan-dev.outputs.summary }}
+          PROD_RESULT: ${{ needs.plan-prod.result }}
+          PROD_SUMMARY: ${{ needs.plan-prod.outputs.summary }}
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `#### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
-            #### Terraform Initialization ⚙️\`${{ steps.init.outcome }}\`
-            #### Terraform Validation 🤖\`${{ steps.validate.outcome }}\`
-
-            **Environment**: ${{ matrix.environment }}
-
-            <details><summary>Validation Output</summary>
-
-            \`\`\`
-            ${{ steps.validate.outputs.stdout }}
-            \`\`\`
-
-            </details>
-
-            *Pusher: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
-
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: output
-            })
+            // One comment per PR, updated on every push (found by its marker).
+            const marker = '<!-- terraform-plan-summary -->';
+            const env = process.env;
+            const section = (name, result, summary) => {
+              const body = result === 'success' ? (summary || 'No changes') : `Plan ${result} — see the job log.`;
+              return `#### ${name} ${result === 'success' ? '✅' : '❌'}\n\`\`\`\n${body}\n\`\`\``;
+            };
+            const body = [
+              marker,
+              '### Terraform',
+              `**Format / init / validate:** \`${env.VALIDATE_RESULT}\``,
+              section('Plan dev', env.DEV_RESULT, env.DEV_SUMMARY),
+              section('Plan prod', env.PROD_RESULT, env.PROD_SUMMARY),
+              '_Addresses only (`<actions> <address>`); attribute values are not published. Read-only role `github-actions-plan`, `-lock=false`._',
+            ].join('\n\n');
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
+            const existing = comments.find(c => c.body && c.body.startsWith(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

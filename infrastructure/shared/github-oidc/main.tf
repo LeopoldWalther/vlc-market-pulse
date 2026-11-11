@@ -469,6 +469,17 @@ data "aws_iam_policy_document" "github_actions_plan" {
     resources = ["*"]
   }
 
+  # The AWS provider checks a bucket's existence with HeadBucket, which needs
+  # s3:ListBucket. Without it the buckets look deleted and the plan proposes
+  # to recreate them (seen in the first CI plan, PR #54). Listing keys only —
+  # no object reads.
+  statement {
+    sid       = "ProjectBucketExistence"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = concat(local.listings_bucket_arns, local.frontend_bucket_arns)
+  }
+
   statement {
     sid       = "TerraformStateRead"
     effect    = "Allow"
@@ -667,6 +678,17 @@ data "aws_iam_policy_document" "github_actions_apply_read" {
     effect    = "Allow"
     actions   = local.terraform_read_actions
     resources = ["*"]
+  }
+
+  # The AWS provider checks a bucket's existence with HeadBucket, which needs
+  # s3:ListBucket. Without it the buckets look deleted and the plan proposes
+  # to recreate them (seen in the first CI plan, PR #54). Listing keys only —
+  # no object reads.
+  statement {
+    sid       = "ProjectBucketExistence"
+    effect    = "Allow"
+    actions   = ["s3:ListBucket"]
+    resources = concat(local.listings_bucket_arns, local.frontend_bucket_arns)
   }
 
   # State read/write incl. the S3-native lock file (<key>.tflock).

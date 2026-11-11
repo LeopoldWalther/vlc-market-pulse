@@ -95,10 +95,13 @@ jobs:
       # requests.zip is gitignored (*.zip). Its aws_lambda_layer_version has no
       # source_code_hash, so a rebuilt archive does not show up as a change; it
       # only has to exist. Built from Linux wheels with the versions of the
-      # deployed layer.
+      # deployed layer. The directory itself is untracked (it only holds the
+      # zip), so it does not exist in a fresh checkout.
       - name: Build requests layer
-        working-directory: src/etl/lambda_layers/requests
+        working-directory: .
         run: |
+          mkdir -p src/etl/lambda_layers/requests
+          cd src/etl/lambda_layers/requests
           if [ -f requests.zip ]; then exit 0; fi
           python3 -m pip install --quiet --disable-pip-version-check --target build/python \
             --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 --only-binary=:all: \
