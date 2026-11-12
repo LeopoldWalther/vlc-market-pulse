@@ -577,6 +577,11 @@ locals {
     "arn:aws:lambda:${local.aws_region}:${local.account_id}:function:${pair[0]}-${pair[1]}"
   ]
 
+  smoke_function_arns = [
+    for fn in ["silver-cleaner", "gold-aggregator", "pipeline-health"] :
+    "arn:aws:lambda:${local.aws_region}:${local.account_id}:function:dev-${fn}"
+  ]
+
   apply_layer_arns = flatten([
     for env in local.environments : [
       "arn:aws:lambda:${local.aws_region}:${local.account_id}:layer:${env}-requests-layer",
@@ -775,6 +780,25 @@ data "aws_iam_policy_document" "github_actions_apply_compute" {
       "lambda:UpdateFunctionConfiguration",
     ]
     resources = local.apply_function_arns
+  }
+
+  # Post-deploy smoke tests (terraform-deploy.yml), dev only: the pipeline
+  # Lambdas and, when the bronze path changed, one state machine execution.
+  # Nothing in prod: a prod execution would spend the Idealista quota
+  # (100 requests/month), and a prod smoke job would need a second approval.
+  # DescribeExecution is already covered by states:Describe* in the read part.
+  statement {
+    sid       = "SmokeInvokeLambdas"
+    effect    = "Allow"
+    actions   = ["lambda:InvokeFunction"]
+    resources = local.smoke_function_arns
+  }
+
+  statement {
+    sid       = "SmokeStartDevPipeline"
+    effect    = "Allow"
+    actions   = ["states:StartExecution"]
+    resources = ["arn:aws:states:${local.aws_region}:${local.account_id}:stateMachine:dev-medallion-pipeline"]
   }
 
   statement {

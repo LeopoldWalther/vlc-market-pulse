@@ -1,0 +1,135 @@
+name: Terraform Deploy
+
+# Applies the environment stacks (FEATURE-018):
+#   push to main          → apply dev, then smoke-test dev
+#   workflow_dispatch     → apply the chosen environment; prod waits for the
+#                           required reviewer of the GitHub "prod" environment,
+#                           and both environments only accept the main branch
+#
+# Smoke tests run in dev only. The Idealista quota is 100 requests/month, so
+# the full pipeline (bronze → silver → gold) only runs when the bronze path
+# changed; otherwise silver and gold are invoked directly on existing data.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "infrastructure/environments/**"
+      - "infrastructure/modules/**"
+      - "src/etl/**"
+      - ".github/workflows/terraform-deploy.yml"
+      - ".github/workflows/_terraform.yml"
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to apply"
+        required: true
+        type: choice
+        options:
+          - dev
+          - prod
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  apply:
+    name: Apply ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+    uses: ./.github/workflows/_terraform.yml
+    with:
+      environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'dev' }}
+      mode: apply
+      role: apply
+
+  smoke:
+    name: Smoke test dev
+    needs: apply
+    if: github.event_name == 'push' || inputs.environment == 'dev'
+    runs-on: ubuntu-latest
+    # The apply role trusts environment-bound subjects only.
+    environment: dev
+    timeout-minutes: 20
+    env:
+      AWS_REGION: eu-central-1
+      # Paths whose changes justify one full dev pipeline run (Idealista calls).
+      BRONZE_PATHS: >-
+        src/etl/data_collection/
+        infrastructure/modules/lambda_bronze/
+        infrastructure/modules/pipeline_orchestrator/
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 2
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
+        with:
+          role-to-assume: ${{ vars.AWS_APPLY_ROLE_ARN }}
+          role-session-name: gha-terraform-smoke-dev-${{ github.run_id }}
+          aws-region: eu-central-1
+
+      - name: Decide smoke path
+        id: path
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        # On push, HEAD~1 is the previous main head (first parent of the merge
+        # commit). A manual dispatch never spends Idealista requests.
+        run: |
+          mode=direct
+          if [ "$EVENT_NAME" = "push" ] && git rev-parse --verify --quiet HEAD~1 > /dev/null; then
+            changed=$(git diff --name-only HEAD~1 HEAD)
+            for prefix in $BRONZE_PATHS; do
+              if printf '%s\n' "$changed" | grep -q "^$prefix"; then mode=pipeline; fi
+            done
+          fi
+          echo "Smoke path: $mode"
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+
+      - name: Run the dev pipeline once
+        if: steps.path.outputs.mode == 'pipeline'
+        run: |
+          account_id=$(aws sts get-caller-identity --query Account --output text)
+          sm_arn="arn:aws:states:${AWS_REGION}:${account_id}:stateMachine:dev-medallion-pipeline"
+          exec_arn=$(aws stepfunctions start-execution --state-machine-arn "$sm_arn" \
+            --name "gha-smoke-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --query executionArn --output text)
+          status=RUNNING
+          for _ in $(seq 1 40); do
+            sleep 15
+            status=$(aws stepfunctions describe-execution --execution-arn "$exec_arn" \
+              --query status --output text)
+            [ "$status" != "RUNNING" ] && break
+          done
+          echo "Execution status: $status"
+          if [ "$status" != "SUCCEEDED" ]; then
+            echo "::error::dev-medallion-pipeline ended with $status (timeout is 10 min)"
+            exit 1
+          fi
+
+      # Invokes synchronously and only prints the statusCode: the response
+      # body (snapshot counts, health details) stays out of the public log.
+      - name: Invoke Lambdas
+        env:
+          SMOKE_MODE: ${{ steps.path.outputs.mode }}
+        run: |
+          invoke() {
+            fn=$1
+            meta=$(aws lambda invoke --function-name "$fn" --payload '{}' \
+              --cli-binary-format raw-in-base64-out --cli-read-timeout 360 \
+              --query FunctionError --output text response.json)
+            code=$(jq -r '.statusCode // "missing"' response.json)
+            rm -f response.json
+            echo "$fn: statusCode=$code"
+            if [ "$meta" != "None" ] || [ "$code" != "200" ]; then
+              echo "::error::$fn failed (FunctionError=$meta, statusCode=$code)"
+              return 1
+            fi
+          }
+          if [ "$SMOKE_MODE" = "direct" ]; then
+            invoke dev-silver-cleaner
+            invoke dev-gold-aggregator
+          fi
+          invoke dev-pipeline-health
