@@ -75,14 +75,12 @@ const GENERAL_ONLY_RENDERERS = [
 
 const ALL_RENDERERS = [...GENERAL_ONLY_RENDERERS, ...TOGGLE_RENDERERS];
 
-// Data Basis tab renderers. Every record in data_basis already carries a
-// district/neighbourhood dimension, so listing-locations-map is scoped via
-// applyScope() (district/neighbourhood only — population toggle has no
-// effect on the Data Basis tab in this feature; that requires the
-// re-aggregated per-population data_basis datasets deferred to FEATURE-016).
-// The other 4 Data Basis renderers do NOT yet carry a district/neighbourhood
-// dimension in their aggregated rows, so they remain unscoped/unfiltered
-// until FEATURE-016 re-dimensions them.
+// Data Basis tab renderers. Since FEATURE-016 every Data Basis dataset
+// carries a district/neighbourhood dimension and exists once per population
+// (data_basis / data_basis_relevant), so all of them follow the shared
+// filter-bar: scope via applyScope(), population via activeDataBasisBlock().
+// The count charts sum the surviving rows back to their own grain
+// (src/reaggregate.js).
 const DATA_BASIS_RENDERERS = [
   listingLocationsMapRenderer,
   weeklyListingVolumeRenderer,
@@ -91,10 +89,6 @@ const DATA_BASIS_RENDERERS = [
   sizeHistogramRenderer,
   roomsDistributionRenderer,
 ];
-
-// Data Basis renderer ids that ARE scope-aware (district/neighbourhood only).
-// See DATA_BASIS_RENDERERS comment above for why the rest are excluded.
-const SCOPED_DATA_BASIS_RENDERER_IDS = new Set([listingLocationsMapRenderer.id]);
 
 // Renderer ids whose x-axis is a plain date timeline — they share the
 // generic 'charts.xaxis.date' i18n key instead of a per-renderer xaxis key
@@ -483,24 +477,36 @@ function renderSearchConfigPanel() {
 }
 
 /**
+ * Pick the Data Basis block for the active population.
+ *
+ * Falls back to the general `data_basis` block when the gold document has
+ * no `data_basis_relevant` key — documents written before FEATURE-016 do
+ * not, and the tab must keep rendering against them rather than go blank.
+ *
+ * @returns {object|null|undefined}
+ */
+function activeDataBasisBlock() {
+  if (activePopulation === 'relevant' && cachedData.data_basis_relevant) {
+    return cachedData.data_basis_relevant;
+  }
+  return cachedData.data_basis;
+}
+
+/**
  * Render every Data Basis chart plus the search-config panel.
  *
- * Only listing-locations-map (SCOPED_DATA_BASIS_RENDERER_IDS) is passed
- * through applyScope() — district/neighbourhood filters only, since the
- * population toggle has no effect on the Data Basis tab in this feature. The
- * other 4 charts render against the unscoped data_basis block until
- * FEATURE-016 re-dimensions their aggregations.
+ * All charts read the block of the active population, narrowed by the
+ * current district/neighbourhood scope. The search-config panel is static
+ * and always reads `data_basis`.
  *
  * @param {{viewport: string, colorScheme: string}} context
  * @param {{initial: boolean}} [options]
  */
 async function renderDataBasisTab(context, { initial = true } = {}) {
   renderSearchConfigPanel();
+  const scopedBlock = applyScope(activeDataBasisBlock());
   for (const renderer of DATA_BASIS_RENDERERS) {
-    const populationBlock = SCOPED_DATA_BASIS_RENDERER_IDS.has(renderer.id)
-      ? applyScope(cachedData.data_basis)
-      : cachedData.data_basis;
-    await plotChart(renderer, populationBlock, context, { initial });
+    await plotChart(renderer, scopedBlock, context, { initial });
   }
 }
 
@@ -882,8 +888,7 @@ function renderScopeFilters() {
  * charts are always scope-aware), and Data Basis too if it has already been
  * rendered at least once (FEATURE-014, task 14.13) — the shared filter-bar
  * now sits above both tabs, so a scope change while on Data Basis must
- * refresh it (today this only visibly changes listing-locations-map, task
- * 14.14; the other Data Basis charts remain unscoped until FEATURE-016).
+ * refresh all of its charts.
  */
 async function onScopeChange() {
   renderScopeFilters();
@@ -971,6 +976,11 @@ async function run() {
         renderKpis(activeScoped);
         for (const renderer of TOGGLE_RENDERERS) {
           await plotChart(renderer, activeScoped, currentContext, { initial: false });
+        }
+        // Data Basis has its own per-population block; refresh it only if it
+        // has been rendered (a first visit picks up activePopulation itself).
+        if (renderedTabs.has('data-basis')) {
+          await renderDataBasisTab(currentContext, { initial: false });
         }
       });
     }

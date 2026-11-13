@@ -101,7 +101,7 @@ technical_plan:
         exists, otherwise data_basis) after applyScope(). Remove SCOPED_DATA_BASIS_RENDERER_IDS
         (review M2). The population toggle re-renders the Data Basis tab when it has been visited.
         The search-config panel keeps reading data_basis.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["16.2"]
