@@ -211,7 +211,7 @@ technical_plan:
         dedup (review L2), and the updated sample block. documentation/FRONTEND_LAYER.md: Data Basis
         charts follow scope and population, the re-aggregation helper, and the fallback for gold
         documents without data_basis_relevant.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["16.5"]
