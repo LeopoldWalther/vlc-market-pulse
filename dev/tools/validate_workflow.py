@@ -37,6 +37,8 @@ STATUS_MARKERS = {
     "in-progress": "🟡",
     "complete": "🟢",
     "blocked": "🔴",
+    # Closed without finishing every task (e.g. the work moved to another repository).
+    "superseded": "⚪",
 }
 
 # Folder layouts we have since moved away from; flag any lingering mention.
@@ -188,6 +190,7 @@ def _check_plan(plan: PlanProgress, readme: dict[str, str], errors: list[str], w
 
     expected = _expected_marker(plan.done_count, plan.task_count)
     progress = f"{plan.done_count}/{plan.task_count}"
+    superseded = STATUS_MARKERS["superseded"]
 
     plan_file = _plan_file_for(plan.feature_id)
     if plan_file is None:
@@ -197,6 +200,10 @@ def _check_plan(plan: PlanProgress, readme: dict[str, str], errors: list[str], w
         marker = _plan_file_status(plan_file)
         if marker is None:
             errors.append(f"{rel_plan}: missing or unrecognized **Status:** header")
+        elif marker == superseded:
+            # A superseded feature is closed on purpose; its task progress no longer drives the
+            # status, but the README must agree that it is closed.
+            expected = superseded
         elif marker != expected:
             errors.append(
                 f"{rel_plan}: status {marker} disagrees with technical progress {progress} (expected {expected})"

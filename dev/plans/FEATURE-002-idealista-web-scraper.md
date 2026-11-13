@@ -1,12 +1,18 @@
 # FEATURE-002: Idealista Web Scraper — OOP Service on AWS Fargate
 
-**Status:** 🟡 In Progress (Phase 1 of 3 complete — OOP core + local notebook validated; Docker/Fargate phases pending)
+**Status:** ⚪ Superseded — moved to the sibling repository [vlc-market-oracle](https://github.com/LeopoldWalther/vlc-market-oracle)
 **Branch:** `feature/idealista-web-scraper`
 **Assignee:** @implementer
 **Created:** 2026-03-29
 **Updated:** 2026-06-06
 **Estimated Effort:** L (6–8 days)
 **Priority:** High
+
+> **Closure note (2026-11-13):** Phase 1 (tasks 1.1–1.11) was implemented here, then the scraper
+> package was removed from this repository in commit `a7f9905` ("refactor: split and rename
+> project", 2026-09-10) and continues in the sibling repository. This repository deliberately stays
+> on the official Idealista API (see README, "Sister Project"). Phases 2–3 (container, Fargate)
+> are therefore cancelled here and will not be implemented in this repository.
 
 ---
 

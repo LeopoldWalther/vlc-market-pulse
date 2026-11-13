@@ -1,6 +1,6 @@
 # FEATURE-014 — Dashboard UX refinements: health thresholds, trend counts, population dropdown, footer cleanup, Data Basis shared filter-bar
 
-**Status:** 🟢 Implemented (pending PR/review) · **Effort:** M–L (~22.5 h) · **Priority:** Medium
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** M–L (~22.5 h) · **Priority:** Medium
 **Branch root:** `feature/dashboard-ux-refinements` · **Created:** 2026-07-19 · **Updated:** 2026-07-19
 
 > **Implementation note (2026-07-19, `@implementer`):** all 12 tasks in
@@ -457,3 +457,7 @@ cost estimate for the modest `latest.json` growth from new dimension columns and
   fixed the technical plan's task status enum (`planned` → `not_started`) to match the ARI contract,
   and updated this plan, the technical plan YAML, and `dev/plans/README.md` accordingly. See
   [REVIEW-FEATURE-014.md](../reviews/REVIEW-FEATURE-014.md) for full findings.
+- **2026-11-13** — Status reconciled with reality: all twelve task branches are merged into `main`
+  and pushed; the health Lambdas in dev and prod were redeployed after the merge (2026-07-19) and
+  both frontend buckets carry the FEATURE-014 assets. The "local-only" implementation note at the
+  top is historical. Marked 🟢 complete; the deferred Data Basis work continues in FEATURE-016.

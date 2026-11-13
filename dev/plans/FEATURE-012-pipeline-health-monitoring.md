@@ -1,6 +1,6 @@
 # FEATURE-012 — Pipeline Health monitoring: overall traffic light (bronze/silver/gold, API quota, AWS cost)
 
-**Status:** 🟢 Implemented, pending deployment · **Effort:** L (~3.5–4 d) · **Priority:** Medium
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** L (~3.5–4 d) · **Priority:** Medium
 **Branch root:** `feature/pipeline-health-monitoring` · **Created:** 2026-08-04 · **Updated:** 2026-08-04
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-012.md`).
@@ -352,3 +352,7 @@ after gold's `12:45` run, so it can report on that week's just-completed pipelin
   dev-to-prod deployment/validation steps. Terraform has **not** yet been applied to either
   environment — the dev manual invocation/verification and prod promotion steps remain open and
   are documented as instructions only.
+- **2026-11-13** — Status reconciled with reality: `dev-pipeline-health` and `prod-pipeline-health`
+  are deployed with their weekly schedules, and both environments serve a current
+  `gold/pipeline_health/latest.json`. The "not yet applied" remark above is historical. Marked 🟢
+  complete. The optional SNS red-status alert stays an unscheduled idea.

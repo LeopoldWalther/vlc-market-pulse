@@ -287,7 +287,7 @@ technical_plan:
     - id: "2.1"
       title: "Container entry point run_task.py"
       description: "run_task.py is the Fargate container entry point (main()): reads env config, builds the production object graph via ProxyProviderFactory + S3ListingRepository, scrapes both operations, publishes an SNS alert on any unhandled ScraperError, and exits non-zero on failure so ECS marks the task failed. Honours SCRAPER_ENABLED."
-      status: "planned"
+      status: "cancelled"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["1.10"]
@@ -311,7 +311,7 @@ technical_plan:
     - id: "2.2"
       title: "Dockerfile and image build"
       description: "Dockerfile based on python:3.12-slim installs scraper/requirements.txt, copies the package, runs as a non-root user, sets PYTHONPATH so etl.data_collection.scraper resolves, and CMD runs run_task. .dockerignore keeps the image small."
-      status: "planned"
+      status: "cancelled"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["2.1"]
@@ -335,7 +335,7 @@ technical_plan:
     - id: "2.3"
       title: "Coverage gate + compliance/ToS and kill-switch docs"
       description: "Enforce >= 80% coverage for the scraper package and document the compliance posture: a ToS/legal acknowledgment for scraping the public site, polite-scraping defaults (randomized delays, backoff), the SCRAPER_ENABLED default-off behaviour in a new environment, and that the official API collector remains the primary source where quotas allow. Restores the safeguard dropped in the rewrite."
-      status: "planned"
+      status: "cancelled"
       complexity: "low"
       estimated_hours: 1.5
       depends_on: ["2.1", "2.2"]
@@ -357,7 +357,7 @@ technical_plan:
     - id: "3.1"
       title: "Fargate module: ECR, ECS cluster, task definition, logs"
       description: "New Terraform module infrastructure/modules/fargate_scraper: an ECR repository (lifecycle expires untagged images), a new ECS cluster (none exists today), a Fargate task definition (cpu=512, memory=1024, the python3.12 image, awslogs driver), and a CloudWatch log group /ecs/{env}-idealista-scraper (30-day retention). variables.tf/outputs.tf; region-aware; no hardcoded ARNs."
-      status: "planned"
+      status: "cancelled"
       complexity: "high"
       estimated_hours: 3
       depends_on: []
@@ -382,7 +382,7 @@ technical_plan:
     - id: "3.2"
       title: "EventBridge Scheduler, RunTask target, and scoped IAM"
       description: "Extend the module with an EventBridge Scheduler rule cron(0 13 ? * SUN *) targeting an ECS RunTask (1 h after the API collector), a task execution role (ECR pull, CloudWatch Logs), and a task role scoped to s3:PutObject on bronze/idealista-scraper/*, sns:Publish on the topic, and secretsmanager:GetSecretValue on the proxy secret only."
-      status: "planned"
+      status: "cancelled"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["3.1"]
@@ -408,7 +408,7 @@ technical_plan:
     - id: "3.3"
       title: "Proxy provider secret"
       description: "Provision a Secrets Manager secret holding the proxy provider credentials (Rayobyte/ProxyRack endpoint + username/password/API key), injected via secrets.tfvars and never committed. Referenced by the task role from 3.2."
-      status: "planned"
+      status: "cancelled"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["3.1"]
@@ -432,7 +432,7 @@ technical_plan:
     - id: "3.4"
       title: "Wire dev environment + networking"
       description: "Instantiate module \"idealista_scraper\" in infrastructure/environments/dev/main.tf (passing bucket, SNS topic, proxy secret name). Use a public subnet + assign public IP (no NAT) with an egress-only security group. Prod is NOT wired (deferred, mirrors FEATURE-003)."
-      status: "planned"
+      status: "cancelled"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["3.2", "3.3"]
@@ -455,7 +455,7 @@ technical_plan:
     - id: "3.5"
       title: "Docs and image build/push runbook"
       description: "Extend documentation/DATA_COLLECTION_LAYER.md with the scraper architecture, the proxy abstraction, the bronze/idealista-scraper/ layout, and an operational runbook (docker build -> ECR login -> push, re-run the task, rotate proxy creds). CI deploy workflow is a deferred follow-up."
-      status: "planned"
+      status: "cancelled"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["3.4"]
@@ -483,6 +483,7 @@ technical_plan:
       - "Do NOT wire prod (deferred, mirrors FEATURE-003)"
 
   notes:
+    - "2026-11-13: tasks 2.1-3.5 cancelled in this repository. The scraper package was removed in commit a7f9905 (project split) and continues in the sibling repository vlc-market-oracle."
     - "v2.0 rewrite: TDD-sliced tasks (tests co-located, fixing review H1); each Phase-1 module ships its own test."
     - "SCRAPER_ENABLED kill switch restored (task 1.10/2.1) and compliance/ToS docs restored (task 2.3) per review H2."
     - "Oversized 'abstractions + proxies' task split into 1.3-1.8 per review M1."
