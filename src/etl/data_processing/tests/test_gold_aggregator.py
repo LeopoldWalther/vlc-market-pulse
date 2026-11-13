@@ -429,3 +429,100 @@ class TestGoldAggregatorEmitsDataBasis:
         result = make_aggregator(store).aggregate()
         document = json.loads(store.get_bytes(result.key))
         assert "data_basis" in document
+
+
+# ---------------------------------------------------------------------------
+# Additive data_basis_relevant population block (FEATURE-016, task 16.5)
+# ---------------------------------------------------------------------------
+
+
+def _relevant_listing(**overrides: Any) -> Dict[str, Any]:
+    """A listing that satisfies RELEVANT_FILTER_SPEC unless overridden."""
+    base: Dict[str, Any] = {
+        "operation": "sale",
+        "district": "Extramurs",
+        "neighborhood": "Arrancapins",
+        "snapshot_date": "2023-04-09",
+        "propertyCode": "REL1",
+        "priceByArea": 3000.0,
+        "size": 130.0,
+        "price": 390_000.0,
+        "floor": "3",
+        "rooms": 3,
+        "bathrooms": 2,
+        "hasLift": True,
+        "latitude": 39.47,
+        "longitude": -0.38,
+    }
+    base.update(overrides)
+    return base
+
+
+def _total(records: List[Dict[str, Any]]) -> int:
+    """Sum count_listings over a dataset's records."""
+    return sum(int(record["count_listings"]) for record in records)
+
+
+class TestGoldAggregatorEmitsDataBasisRelevant:
+    """build_document adds data_basis_relevant beside data_basis."""
+
+    def _document(self, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
+        aggregator = make_aggregator(InMemoryObjectStore())
+        return aggregator.build_document(pd.DataFrame(rows))
+
+    def test_block_sits_directly_after_data_basis_with_the_same_datasets(
+        self,
+    ) -> None:
+        document = self._document([_relevant_listing()])
+
+        keys = list(document.keys())
+        assert keys.index("data_basis_relevant") == keys.index("data_basis") + 1
+        assert list(document["data_basis_relevant"].keys()) == list(
+            document["data_basis"].keys()
+        )
+        assert document["schema_version"] == "1.0"
+
+    def test_block_only_counts_rows_matching_the_relevant_filter(self) -> None:
+        rows = [
+            _relevant_listing(propertyCode="REL1"),
+            _relevant_listing(propertyCode="REL2", neighborhood="La Roqueta"),
+            # Not relevant: too small and no lift.
+            _relevant_listing(propertyCode="GEN1", size=80.0, hasLift=False),
+        ]
+        document = self._document(rows)
+
+        for dataset in (
+            "weekly_listing_volume",
+            "size_histogram_10sqm",
+            "rooms_distribution",
+            "price_per_area_histogram",
+        ):
+            assert _total(document["data_basis"][dataset]) == 3, dataset
+            assert _total(document["data_basis_relevant"][dataset]) == 2, dataset
+        assert len(document["data_basis"]["listing_locations_last_3m"]) == 3
+        assert len(document["data_basis_relevant"]["listing_locations_last_3m"]) == 2
+
+    def test_search_config_is_identical_in_both_blocks(self) -> None:
+        document = self._document([_relevant_listing()])
+
+        assert (
+            document["data_basis_relevant"]["search_config"]
+            == document["data_basis"]["search_config"]
+        )
+
+    def test_empty_silver_history_yields_empty_datasets_in_both_blocks(self) -> None:
+        store = InMemoryObjectStore()
+
+        result = make_aggregator(store).aggregate()
+        document = json.loads(store.get_bytes(result.key))
+
+        for block in ("data_basis", "data_basis_relevant"):
+            for key, value in document[block].items():
+                if key != "search_config":
+                    assert value == [], f"{block}.{key}"
+
+    def test_no_relevant_rows_yields_empty_relevant_datasets(self) -> None:
+        document = self._document([_relevant_listing(size=80.0)])
+
+        assert _total(document["data_basis"]["weekly_listing_volume"]) == 1
+        assert document["data_basis_relevant"]["weekly_listing_volume"] == []

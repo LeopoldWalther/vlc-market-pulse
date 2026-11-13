@@ -68,6 +68,7 @@ _SCHEMA_V1_KEYS = {
     "general",
     "relevant",
     "data_basis",
+    "data_basis_relevant",
 }
 
 
@@ -239,6 +240,10 @@ class TestLambdaHappyPath:
         # search_config is a static single-record dataset even with minimal
         # fixture data.
         assert payload["data_basis"]["search_config"]
+        # FEATURE-016: the relevant-population twin carries the same datasets.
+        assert list(payload["data_basis_relevant"].keys()) == list(
+            payload["data_basis"].keys()
+        )
 
 
 # ---------------------------------------------------------------------------

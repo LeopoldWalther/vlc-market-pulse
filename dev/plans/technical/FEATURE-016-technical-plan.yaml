@@ -173,7 +173,7 @@ technical_plan:
         GoldAggregator.build_document() adds "data_basis_relevant", produced by running the same
         Data Basis strategy list over _relevant_rows(scoped), directly after "data_basis". The
         data_basis block and schema_version "1.0" stay unchanged. Regenerate the golden master.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["16.4"]
