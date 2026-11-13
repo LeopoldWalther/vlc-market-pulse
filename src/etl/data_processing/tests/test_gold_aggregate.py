@@ -11,10 +11,12 @@ is covered here.
 
 from __future__ import annotations
 
+import json
+
 import os
 import sys
 from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 import pandas as pd
 import pytest
@@ -1031,6 +1033,195 @@ class TestPricePerAreaHistogram:
 
     def test_empty_input_returns_empty_list(self) -> None:
         assert price_per_area_histogram(pd.DataFrame(columns=_BASE_COLS)) == []
+
+
+# ---------------------------------------------------------------------------
+# District/neighbourhood dimensions on the count datasets (FEATURE-016, 16.4)
+# ---------------------------------------------------------------------------
+
+
+def _collapse(
+    records: List[Dict[str, Any]], key_fields: List[str]
+) -> Dict[Tuple[Any, ...], int]:
+    """Sum ``count_listings`` back to the grain given by ``key_fields``."""
+    totals: Dict[Tuple[Any, ...], int] = {}
+    for record in records:
+        key = tuple(record[field] for field in key_fields)
+        totals[key] = totals.get(key, 0) + record["count_listings"]
+    return totals
+
+
+def _two_neighbourhood_rows() -> List[Dict[str, Any]]:
+    """Five sale listings and one rent listing across two neighbourhoods."""
+    return [
+        _make_listing(propertyCode="A1", size=101.0, rooms=3, priceByArea=2510.0),
+        _make_listing(propertyCode="A2", size=104.0, rooms=3, priceByArea=2590.0),
+        _make_listing(propertyCode="A3", size=115.0, rooms=4, priceByArea=2800.0),
+        _make_listing(
+            propertyCode="B1",
+            district="Ciutat Vella",
+            neighborhood="El Carme",
+            size=102.0,
+            rooms=3,
+            priceByArea=2520.0,
+        ),
+        _make_listing(
+            propertyCode="B2",
+            district="Ciutat Vella",
+            neighborhood="El Carme",
+            size=118.0,
+            rooms=2,
+            priceByArea=3100.0,
+        ),
+        _make_listing(
+            propertyCode="R1",
+            operation="rent",
+            district="Ciutat Vella",
+            neighborhood="El Carme",
+            size=103.0,
+            rooms=3,
+            priceByArea=12.4,
+        ),
+    ]
+
+
+class TestDataBasisDimensions:
+    """The four count datasets carry district + neighbourhood (FEATURE-016).
+
+    The dashboard filters these rows by scope and sums them back to the
+    chart grain, so two things must hold: every record names its district
+    and neighbourhood, and summing over them reproduces the undimensioned
+    counts exactly (no listing lost or double-counted).
+    """
+
+    def test_weekly_listing_volume_is_split_by_district_and_neighbourhood(
+        self,
+    ) -> None:
+        result = weekly_listing_volume(_df(_two_neighbourhood_rows()))
+        assert list(result[0].keys()) == [
+            "operation",
+            "district",
+            "neighborhood",
+            "snapshot_date",
+            "count_listings",
+        ]
+        by_key = {
+            (r["operation"], r["district"], r["neighborhood"]): r["count_listings"]
+            for r in result
+        }
+        assert by_key == {
+            ("sale", "Extramurs", "Patraix"): 3,
+            ("sale", "Ciutat Vella", "El Carme"): 2,
+            ("rent", "Ciutat Vella", "El Carme"): 1,
+        }
+
+    def test_size_histogram_is_split_by_district_and_neighbourhood(self) -> None:
+        result = size_histogram_10sqm(_df(_two_neighbourhood_rows()))
+        assert list(result[0].keys()) == [
+            "operation",
+            "district",
+            "neighborhood",
+            "bin_start_m2",
+            "bin_end_m2",
+            "count_listings",
+        ]
+        by_key = {
+            (r["operation"], r["neighborhood"], r["bin_start_m2"]): r["count_listings"]
+            for r in result
+        }
+        assert by_key[("sale", "Patraix", 100)] == 2
+        assert by_key[("sale", "El Carme", 100)] == 1
+        assert by_key[("sale", "Patraix", 110)] == 1
+        assert by_key[("sale", "El Carme", 110)] == 1
+        assert by_key[("rent", "El Carme", 100)] == 1
+
+    def test_rooms_distribution_is_split_by_district_and_neighbourhood(self) -> None:
+        result = rooms_distribution(_df(_two_neighbourhood_rows()))
+        assert list(result[0].keys()) == [
+            "operation",
+            "district",
+            "neighborhood",
+            "rooms",
+            "count_listings",
+        ]
+        by_key = {
+            (r["operation"], r["neighborhood"], r["rooms"]): r["count_listings"]
+            for r in result
+        }
+        assert by_key == {
+            ("sale", "Patraix", 3): 2,
+            ("sale", "Patraix", 4): 1,
+            ("sale", "El Carme", 3): 1,
+            ("sale", "El Carme", 2): 1,
+            ("rent", "El Carme", 3): 1,
+        }
+
+    def test_price_histogram_is_split_by_district_and_neighbourhood(self) -> None:
+        result = price_per_area_histogram(_df(_two_neighbourhood_rows()))
+        assert list(result[0].keys()) == [
+            "operation",
+            "district",
+            "neighborhood",
+            "bin_start_price_m2",
+            "bin_end_price_m2",
+            "count_listings",
+        ]
+        by_key = {
+            (
+                r["operation"],
+                r["neighborhood"],
+                r["bin_start_price_m2"],
+            ): r["count_listings"]
+            for r in result
+        }
+        assert by_key == {
+            ("sale", "Patraix", 2500.0): 2,
+            ("sale", "Patraix", 2750.0): 1,
+            ("sale", "El Carme", 2500.0): 1,
+            ("sale", "El Carme", 3000.0): 1,
+            ("rent", "El Carme", 12.0): 1,
+        }
+
+    def test_dimensioned_records_are_json_serialisable(self) -> None:
+        """numpy scalars in a record would break json.dumps in the aggregator."""
+        df = _df(_two_neighbourhood_rows())
+        for records in (
+            weekly_listing_volume(df),
+            size_histogram_10sqm(df),
+            rooms_distribution(df),
+            price_per_area_histogram(df),
+        ):
+            assert json.loads(json.dumps(records)) == records
+
+    def test_collapsing_reproduces_the_undimensioned_counts(self) -> None:
+        """Summing over district/neighbourhood equals a plain count."""
+        df = _df(_two_neighbourhood_rows())
+
+        assert _collapse(weekly_listing_volume(df), ["operation"]) == {
+            ("sale",): 5,
+            ("rent",): 1,
+        }
+        assert _collapse(
+            size_histogram_10sqm(df), ["operation", "bin_start_m2", "bin_end_m2"]
+        ) == {
+            ("sale", 100, 110): 3,
+            ("sale", 110, 120): 2,
+            ("rent", 100, 110): 1,
+        }
+        assert _collapse(rooms_distribution(df), ["operation", "rooms"]) == {
+            ("sale", 3): 3,
+            ("sale", 4): 1,
+            ("sale", 2): 1,
+            ("rent", 3): 1,
+        }
+        assert _collapse(
+            price_per_area_histogram(df), ["operation", "bin_start_price_m2"]
+        ) == {
+            ("sale", 2500.0): 3,
+            ("sale", 2750.0): 1,
+            ("sale", 3000.0): 1,
+            ("rent", 12.0): 1,
+        }
 
 
 # ---------------------------------------------------------------------------

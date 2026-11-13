@@ -590,6 +590,13 @@ _SIZE_HISTOGRAM_BIN_WIDTH_M2: int = 10
 # individual listing's exact location is exposed (review H1).
 _LOCATION_GRID_PRECISION_DECIMALS: int = 3
 
+# Location dimensions carried by every Data Basis count dataset
+# (FEATURE-016). The dashboard filters rows on these two fields and then
+# sums count_listings back to the chart grain, so they are group-by keys in
+# addition to each dataset's own grain. Silver drops rows without a
+# neighbourhood, so grouping on them never loses a listing.
+_LOCATION_DIMENSIONS: List[str] = ["district", "neighborhood"]
+
 
 def search_config_summary() -> Dict[str, Any]:
     """
@@ -625,26 +632,28 @@ def search_config_summary() -> Dict[str, Any]:
 
 def weekly_listing_volume(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
-    Count listings per (operation, snapshot_date).
+    Count listings per (operation, district, neighborhood, snapshot_date).
 
     Callers must pass rows already deduped within each snapshot (e.g. via
     :func:`_dedup`) — this helper does not dedup itself, matching the
     per-snapshot dedup semantics used everywhere else in the gold layer.
-    Unlike general/relevant, this is computed over UNSCOPED data: every
-    district contributes, not just the 3 scope districts.
+    The helper applies no scope filter of its own; ``GoldAggregator`` passes
+    it rows already restricted to the scope districts.
 
     Args:
         df: Per-snapshot-deduped listings DataFrame (any scope).
 
     Returns:
-        List of record dicts: operation, snapshot_date, count_listings.
+        List of record dicts: operation, district, neighborhood,
+        snapshot_date, count_listings. Summing count_listings over district
+        and neighborhood yields the count per (operation, snapshot_date).
         Empty list when input is empty.
     """
     if df.empty:
         return []
 
     grp = (
-        df.groupby(["operation", "snapshot_date"])
+        df.groupby(["operation", *_LOCATION_DIMENSIONS, "snapshot_date"])
         .agg(count_listings=("propertyCode", "count"))
         .reset_index()
     )
@@ -832,7 +841,8 @@ def size_histogram_10sqm(
     df: pd.DataFrame, bin_width_m2: int = _SIZE_HISTOGRAM_BIN_WIDTH_M2
 ) -> List[Dict[str, Any]]:
     """
-    Bin listings into deterministic 10 m2 size buckets, per operation.
+    Bin listings into deterministic 10 m2 size buckets, per operation,
+    district and neighborhood.
 
     Bin edges are computed as ``floor(size / bin_width) * bin_width`` so the
     same size always falls into the same bin regardless of the surrounding
@@ -843,9 +853,9 @@ def size_histogram_10sqm(
         bin_width_m2: Bucket width in m2. Defaults to 10.
 
     Returns:
-        List of record dicts: operation, bin_start_m2, bin_end_m2,
-        count_listings. Empty list when input is empty or ``size`` is
-        entirely missing.
+        List of record dicts: operation, district, neighborhood,
+        bin_start_m2, bin_end_m2, count_listings. Empty list when input is
+        empty or ``size`` is entirely missing.
     """
     if df.empty:
         return []
@@ -858,29 +868,34 @@ def size_histogram_10sqm(
     binned = pd.DataFrame(
         {
             "operation": working["operation"],
+            "district": working["district"],
+            "neighborhood": working["neighborhood"],
             "bin_start_m2": bin_start,
             "bin_end_m2": bin_start + bin_width_m2,
         }
     )
     grp = (
-        binned.groupby(["operation", "bin_start_m2", "bin_end_m2"])
+        binned.groupby(
+            ["operation", *_LOCATION_DIMENSIONS, "bin_start_m2", "bin_end_m2"]
+        )
         .size()
         .reset_index(name="count_listings")
-        .sort_values(["operation", "bin_start_m2"])
+        .sort_values(["operation", *_LOCATION_DIMENSIONS, "bin_start_m2"])
     )
     return cast(List[Dict[str, Any]], grp.to_dict(orient="records"))
 
 
 def rooms_distribution(df: pd.DataFrame) -> List[Dict[str, Any]]:
     """
-    Count listings per (operation, rooms).
+    Count listings per (operation, district, neighborhood, rooms).
 
     Args:
         df: Listings DataFrame (typically latest-by-property deduped).
 
     Returns:
-        List of record dicts: operation, rooms, count_listings. Empty list
-        when input is empty or ``rooms`` is entirely missing.
+        List of record dicts: operation, district, neighborhood, rooms,
+        count_listings. Empty list when input is empty or ``rooms`` is
+        entirely missing.
     """
     if df.empty:
         return []
@@ -891,10 +906,10 @@ def rooms_distribution(df: pd.DataFrame) -> List[Dict[str, Any]]:
 
     working["rooms"] = working["rooms"].astype(int)
     grp = (
-        working.groupby(["operation", "rooms"])
+        working.groupby(["operation", *_LOCATION_DIMENSIONS, "rooms"])
         .size()
         .reset_index(name="count_listings")
-        .sort_values(["operation", "rooms"])
+        .sort_values(["operation", *_LOCATION_DIMENSIONS, "rooms"])
     )
     return cast(List[Dict[str, Any]], grp.to_dict(orient="records"))
 
@@ -904,7 +919,8 @@ def price_per_area_histogram(
     bin_width_by_operation: Optional[Dict[str, float]] = None,
 ) -> List[Dict[str, Any]]:
     """
-    Bin listings by priceByArea (EUR/m2), with operation-specific bin widths.
+    Bin listings by priceByArea (EUR/m2) per operation, district and
+    neighborhood, with operation-specific bin widths.
 
     Sale and rent prices per m2 live on very different scales, so each
     operation gets its own bin width (:data:`_PRICE_PER_AREA_BIN_WIDTH`) —
@@ -916,9 +932,9 @@ def price_per_area_histogram(
             bin widths (mainly for tests).
 
     Returns:
-        List of record dicts: operation, bin_start_price_m2,
-        bin_end_price_m2, count_listings. Empty list when input is empty or
-        ``priceByArea`` is entirely missing.
+        List of record dicts: operation, district, neighborhood,
+        bin_start_price_m2, bin_end_price_m2, count_listings. Empty list
+        when input is empty or ``priceByArea`` is entirely missing.
     """
     if df.empty:
         return []
@@ -935,20 +951,26 @@ def price_per_area_histogram(
         bin_start = (group["priceByArea"] // width * width).astype(float)
         binned = pd.DataFrame(
             {
+                "district": group["district"],
+                "neighborhood": group["neighborhood"],
                 "bin_start_price_m2": bin_start,
                 "bin_end_price_m2": bin_start + width,
             }
         )
         counts = (
-            binned.groupby(["bin_start_price_m2", "bin_end_price_m2"])
+            binned.groupby(
+                [*_LOCATION_DIMENSIONS, "bin_start_price_m2", "bin_end_price_m2"]
+            )
             .size()
             .reset_index(name="count_listings")
-            .sort_values("bin_start_price_m2")
+            .sort_values([*_LOCATION_DIMENSIONS, "bin_start_price_m2"])
         )
         for row in counts.to_dict(orient="records"):
             records.append(
                 {
                     "operation": operation,
+                    "district": row["district"],
+                    "neighborhood": row["neighborhood"],
                     "bin_start_price_m2": float(row["bin_start_price_m2"]),
                     "bin_end_price_m2": float(row["bin_end_price_m2"]),
                     "count_listings": int(row["count_listings"]),

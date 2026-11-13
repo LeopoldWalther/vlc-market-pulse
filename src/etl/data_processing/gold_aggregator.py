@@ -237,7 +237,7 @@ class SearchConfigDataset:
 
 
 class WeeklyListingVolume:
-    """Strategy: per-snapshot-deduped listing counts, by operation + week."""
+    """Strategy: per-snapshot-deduped listing counts per operation, location and week."""
 
     key: str = "weekly_listing_volume"
 
@@ -247,7 +247,7 @@ class WeeklyListingVolume:
 
 
 class SizeHistogram10sqm:
-    """Strategy: latest-by-property 10 m2 size histogram."""
+    """Strategy: latest-by-property 10 m2 size histogram, per location."""
 
     key: str = "size_histogram_10sqm"
 
@@ -257,7 +257,7 @@ class SizeHistogram10sqm:
 
 
 class RoomsDistribution:
-    """Strategy: latest-by-property rooms distribution."""
+    """Strategy: latest-by-property rooms distribution, per location."""
 
     key: str = "rooms_distribution"
 
@@ -267,7 +267,7 @@ class RoomsDistribution:
 
 
 class PricePerAreaHistogram:
-    """Strategy: latest-by-property price/m2 histogram (operation-specific bins)."""
+    """Strategy: latest-by-property price/m2 histogram per location (operation-specific bins)."""
 
     key: str = "price_per_area_histogram"
 

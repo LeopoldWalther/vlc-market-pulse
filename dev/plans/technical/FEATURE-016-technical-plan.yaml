@@ -136,7 +136,7 @@ technical_plan:
         rooms_distribution() and price_per_area_histogram(). Existing field names and bin logic are
         unchanged. Fix the stale 'UNSCOPED' docstring (review L1). Regenerate the golden master in
         this task, after asserting general/relevant are untouched.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["16.3"]
