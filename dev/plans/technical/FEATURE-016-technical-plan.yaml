@@ -27,7 +27,7 @@ technical_plan:
         key combination that carries exactly the key fields plus count_listings, in first-seen
         order. Never mutates its input. Rows that already sit at the requested grain come back
         with unchanged values (review H1: one build must handle the old and the new gold shape).
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []

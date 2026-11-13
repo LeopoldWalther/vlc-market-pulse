@@ -1,6 +1,6 @@
 # FEATURE-016 — Data Basis: district/neighbourhood dimensions + population split for the remaining 4 charts
 
-**Status:** 🔵 Planned · **Effort:** M (~11.5 h, reviewer estimate) · **Priority:** Medium
+**Status:** 🟡 In progress · **Effort:** M (~11.5 h, reviewer estimate) · **Priority:** Medium
 **Branch root:** `feature/data-basis-dimensioned-filters` · **Created:** 2026-07-19 · **Reviewed:** 2026-11-13
 
 > **Provenance:** this is a stub plan extracted verbatim from `@architect`'s original FEATURE-014
