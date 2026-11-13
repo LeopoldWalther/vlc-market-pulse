@@ -42,3 +42,27 @@ describe('price_per_area_histogram renderers', () => {
     expect(priceHistogramSaleRenderer.render(null).layout).toBeTypeOf('object');
   });
 });
+
+describe('price histogram renderers with district/neighbourhood-dimensioned rows (FEATURE-016)', () => {
+  const dimensioned = {
+    price_per_area_histogram: [
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', bin_start_price_m2: 3000, bin_end_price_m2: 3250, count_listings: 7 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', bin_start_price_m2: 3000, bin_end_price_m2: 3250, count_listings: 3 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', bin_start_price_m2: 2750, bin_end_price_m2: 3000, count_listings: 2 },
+      { operation: 'rent', district: 'Extramurs', neighborhood: 'Arrancapins', bin_start_price_m2: 12, bin_end_price_m2: 13, count_listings: 5 },
+      { operation: 'rent', district: 'Ciutat Vella', neighborhood: 'El Carme', bin_start_price_m2: 12, bin_end_price_m2: 13, count_listings: 4 },
+    ],
+  };
+
+  it('collapses sale rows back to one bar per price bin with summed counts', () => {
+    const [trace] = priceHistogramSaleRenderer.render(dimensioned).data;
+    expect(trace.x).toEqual(['2750-3000', '3000-3250']);
+    expect(trace.y).toEqual([2, 10]);
+  });
+
+  it('collapses rent rows back to one bar per price bin with summed counts', () => {
+    const [trace] = priceHistogramRentRenderer.render(dimensioned).data;
+    expect(trace.x).toEqual(['12-13']);
+    expect(trace.y).toEqual([9]);
+  });
+});

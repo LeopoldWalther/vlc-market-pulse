@@ -61,7 +61,7 @@ technical_plan:
         traces: (operation, snapshot_date), (operation, bin_start_m2, bin_end_m2),
         (operation, rooms), (operation, bin_start_price_m2, bin_end_price_m2). Output for today's
         undimensioned rows must be identical to the current output.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["16.1"]
