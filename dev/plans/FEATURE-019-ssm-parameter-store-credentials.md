@@ -226,3 +226,11 @@ completed one scheduled run on the new path.
   grants `ssm:GetParameter` on the two parameter ARNs plus `kms:Decrypt` scoped by `kms:ViaService`
   and `kms:EncryptionContext:PARAMETER_ARN`; the ARN variables are gone. Local dev plan: 2 in-place
   changes (Lambda, role policy), no secret touched.
+- **2026-11-14** — 19.5 dev verified, prod pending. Merge of PR #68 →
+  [run 43586575146](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43586575146):
+  apply dev green, smoke path `pipeline`, execution `gha-smoke-43586575146-1` SUCCEEDED (the single
+  dev run of this feature). Bronze wrote `sale_20261114_104400_1.json` and
+  `rent_20261114_104400_1.json`; the Lambda reads `/vlc-market-pulse/dev/idealista/*`, so the
+  explicit `kms:Decrypt` grant works under the boundary. **Open:** dispatch and approve the prod
+  deploy after the scheduled run of Sunday 2026-11-15 (12:00 UTC), simulate the prod bronze role,
+  then confirm the scheduled run of 2026-11-22 before starting 19.6.
