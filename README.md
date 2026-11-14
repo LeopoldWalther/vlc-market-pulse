@@ -77,13 +77,19 @@ pre-commit install
 cd src/etl && pytest data_collection/tests/ data_processing/tests/ -v --cov
 ```
 
-Deploy per environment:
+Deployment runs through GitHub Actions ([details](documentation/CI_CD.md)):
+
+- A pull request gets a read-only Terraform plan for dev and prod as a comment.
+- A merge to `main` applies **dev** and smoke-tests it.
+- **Prod** is a manual dispatch of `Terraform Deploy` from `main` that waits for approval.
+- The frontend is deployed with the manual `Deploy Frontend` workflow.
 
 ```bash
-cd infrastructure/environments/dev   # or prod
-terraform init
-terraform apply
+gh workflow run terraform-deploy.yml --ref main -f environment=prod   # then approve in the Actions tab
+gh workflow run deploy-frontend.yml  --ref main -f environment=prod
 ```
+
+A local `terraform apply` in `infrastructure/environments/<env>` still works for the owner and needs no variables.
 
 ### Rotating Idealista credentials
 

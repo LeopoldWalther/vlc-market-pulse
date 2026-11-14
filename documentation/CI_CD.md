@@ -3,6 +3,59 @@
 How GitHub Actions authenticates to AWS and what each workflow may change.
 Introduced by FEATURE-018 ([plan](../dev/plans/FEATURE-018-ci-terraform-deploy.md)).
 
+## Deployment flow
+
+```
+pull request ──▶ terraform-validate.yml ──▶ fmt + validate + read-only plan (dev, prod)
+                                            one PR comment, addresses only
+
+merge to main ─▶ terraform-deploy.yml ────▶ apply dev ──▶ smoke test dev
+
+manual dispatch ▶ terraform-deploy.yml ───▶ apply prod   (waits for the required reviewer;
+  (main only)                                             only `main` may deploy)
+
+manual dispatch ▶ deploy-frontend.yml ────▶ upload frontend + invalidate CloudFront
+```
+
+- **Pull request:** nothing is changed in AWS. The plan runs with the read-only role and
+  `-lock=false`, so it can never block or alter state.
+- **Merge to `main`:** dev is applied automatically when the merge touches
+  `infrastructure/environments/**`, `infrastructure/modules/**` or `src/etl/**` (Lambda zips are
+  built from source). A smoke test follows.
+- **Prod:** start `Terraform Deploy` from the Actions tab (or
+  `gh workflow run terraform-deploy.yml --ref main -f environment=prod`) and approve the waiting
+  job. There is no automatic path to prod.
+- **Frontend:** `Deploy Frontend` is always a manual dispatch, per environment.
+
+### Smoke test and the Idealista quota
+
+The Idealista quota is 100 requests per month, shared between dev and prod. The smoke test
+therefore runs in dev only and never calls Idealista unless the bronze path changed:
+
+| Change in the merge | Smoke path | Idealista requests |
+|---|---|---|
+| `src/etl/data_collection/`, `modules/lambda_bronze/` or `modules/pipeline_orchestrator/` | one `dev-medallion-pipeline` execution (dev runs in test mode: one page per operation) | 2 |
+| anything else, and every manual dispatch | `dev-silver-cleaner` and `dev-gold-aggregator` invoked directly on existing data | 0 |
+
+`dev-pipeline-health` is invoked in both cases and must return `statusCode` 200. The prod state
+machine is never started by CI: the apply role holds `states:StartExecution` and
+`lambda:InvokeFunction` for the dev smoke targets only (see the simulation matrix).
+
+### Steps that stay local
+
+CI must not be able to change its own permissions or read credentials, so the owner runs these by
+hand:
+
+| Step | When | Command |
+|---|---|---|
+| Apply `infrastructure/shared/github-oidc` | after every change to the CI roles or the workload boundary | `terraform plan -out=apply.plan && terraform apply apply.plan`, then `python simulate_apply_role.py --role github-actions-apply` |
+| Rotate Idealista credentials | on expiry or leak | `aws secretsmanager put-secret-value` (README, "Rotating Idealista credentials") |
+| Apply `infrastructure/bootstrap` | once per account | `terraform apply` |
+
+A change to the CI roles is not live until it is applied locally. If a workflow fails with
+`AccessDenied` right after such a change was merged, the local apply is the first thing to check
+(this happened to the first smoke test of task 18.11).
+
 ## IAM roles for GitHub Actions
 
 All roles are assumed through the GitHub OIDC provider (no long-lived keys) and
@@ -27,9 +80,12 @@ immutable one; check with `gh api repos/<owner>/<repo>/actions/oidc/customizatio
 |---|---|---|---|
 | `terraform-validate.yml` | PR / push to `main` touching `infrastructure/**`, `src/etl/**` | `github-actions-plan` (PR only) | fmt + validate; on PRs a read-only plan for dev and prod and one PR comment with the address-only summary |
 | `_terraform.yml` | `workflow_call` | plan or apply | reusable plan/apply for one environment (see below) |
+| `terraform-deploy.yml` | push to `main` (stacks, `src/etl/**`) / manual | `github-actions-apply` | apply dev on merge and smoke-test it; apply dev or prod on dispatch (prod waits for approval) |
 | `deploy-frontend.yml` | manual | `github-actions-deploy` | upload the frontend, invalidate CloudFront |
 
-`_terraform.yml` never publishes attribute values: the plan's text output is
+**Why the logs show no plan details.** The repository and its Actions logs are public, and a
+Terraform plan prints attribute values such as the alert email address, SNS ARNs and the state
+machine definition. `_terraform.yml` therefore never publishes attribute values: the plan's text output is
 discarded, only `<actions> <address>` lines go to the step summary / outputs,
 an apply log is reduced to its `Error` blocks, and the plan file is deleted (no
 artifacts). It builds the gitignored `requests.zip` layer from Linux wheels when
@@ -129,7 +185,7 @@ python simulate_apply_role.py --plan apply.json            # before apply
 python simulate_apply_role.py --role github-actions-apply  # after apply
 ```
 
-Result (2026-11-10, `--plan` and `--role github-actions-apply` identical, 25/25):
+Result (2026-11-13, `--role github-actions-apply` against the deployed role, 32/32 as expected):
 
 | Action | Resource | Expected | Result |
 |---|---|---|---|
@@ -141,7 +197,10 @@ Result (2026-11-10, `--plan` and `--role github-actions-apply` identical, 25/25)
 | `iam:PassRole` | `role/prod-medallion-pipeline-sfn-role` (+ctx) | allow | allowed |
 | `iam:GetPolicy` | `policy/vlc-workload-boundary` | allow | allowed |
 | `s3:PutObject` | `vlc-real-estate-analytics-tf-state/vlc-state/prod/terraform.tfstate.tflock` | allow | allowed |
+| `s3:ListBucket` | `prod-vlc-real-estate-analytics-listings` | allow | allowed |
 | `route53:ChangeResourceRecordSets` | `hostedzone/Z001078818QR783M1TOKB` (+ctx) | allow | allowed |
+| `lambda:InvokeFunction` | `dev-silver-cleaner` | allow | allowed |
+| `states:StartExecution` | `dev-medallion-pipeline` | allow | allowed |
 | `iam:CreateRole` | `role/dev-silver-cleaner-lambda-role` | deny | explicitDeny |
 | `iam:CreateRole` | `role/dev-x` (+ctx) | deny | implicitDeny |
 | `iam:PutRolePolicy` | `role/dev-vlc-market-oracle-collector-role` (+ctx) | deny | implicitDeny |
@@ -156,6 +215,10 @@ Result (2026-11-10, `--plan` and `--role github-actions-apply` identical, 25/25)
 | `s3:GetObjectVersion` | `vlc-real-estate-analytics-tf-state/vlc-state/prod/terraform.tfstate` | deny | explicitDeny |
 | `s3:DeleteBucket` | `prod-vlc-real-estate-analytics-listings` | deny | explicitDeny |
 | `s3:GetObject` | `prod-vlc-real-estate-analytics-listings/bronze/x.json` | deny | implicitDeny |
+| `lambda:InvokeFunction` | `prod-idealista-collector` | deny | implicitDeny |
+| `lambda:InvokeFunction` | `prod-silver-cleaner` | deny | implicitDeny |
+| `lambda:InvokeFunction` | `prod-pipeline-health` | deny | implicitDeny |
+| `states:StartExecution` | `prod-medallion-pipeline` | deny | implicitDeny |
 | `lambda:UpdateFunctionCode` | `prod-vlc-market-oracle-budget-gate` | deny | implicitDeny |
 | `route53:ChangeResourceRecordSets` | `hostedzone/Z001078818QR783M1TOKB` (+ctx) | deny | implicitDeny |
 
@@ -166,3 +229,12 @@ new service, its actions) added to the locals / statements in
 `infrastructure/shared/github-oidc/main.tf`, a matrix case in
 `simulate_apply_role.py`, and a **local** apply by the owner. A CI apply that
 fails with `AccessDenied` names the missing action in its log.
+
+## End-to-end verification (FEATURE-018 task 18.12)
+
+| Check | Expected | Result |
+|---|---|---|
+| Merge to `main` applies dev and the smoke test passes | apply and smoke green | ✅ [run 43281993227](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43281993227) (smoke green on re-run after the local `github-oidc` apply, 2026-11-13) |
+| Prod dispatch from a non-`main` branch | rejected before any step runs | ✅ [run 43517120867](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43517120867): "Branch … is not allowed to deploy to prod due to environment protection rules" |
+| Prod dispatch from `main` | waits for approval; after approval no or only expected changes | ⏳ to be run by the owner |
+| `deploy-frontend.yml` for prod | succeeds | ⏳ to be run by the owner |

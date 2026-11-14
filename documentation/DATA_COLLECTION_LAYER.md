@@ -127,27 +127,18 @@ modules/lambda_bronze/
 
 ## Deployment
 
+Deployment runs through GitHub Actions: a merge to `main` applies dev, prod is a manual,
+approved dispatch (see [CI_CD.md](CI_CD.md)). A local apply needs no variable file:
+
 ```bash
 cd infrastructure/environments/dev   # or prod
-
-# First time
 terraform init
-
-# Review
-terraform plan -var-file="secrets.tfvars"
-
-# Apply
-terraform apply -var-file="secrets.tfvars"
+terraform plan
+terraform apply
 ```
 
-**`secrets.tfvars`** (gitignored):
-```hcl
-idealista_api_key_lvw    = "..."
-idealista_api_secret_lvw = "..."
-idealista_api_key_pmv    = "..."
-idealista_api_secret_pmv = "..."
-notification_email       = "your@email.com"
-```
+Terraform creates the two Secrets Manager secrets but never sees their values. Set or rotate the
+credentials with `aws secretsmanager put-secret-value` (README, "Rotating Idealista credentials").
 
 ## Testing
 
@@ -210,7 +201,7 @@ aws logs filter-log-events \
 ## Security
 
 - API credentials stored exclusively in AWS Secrets Manager
-- `secrets.tfvars` excluded from version control via `.gitignore`
+- Credential values are never part of the Terraform configuration, variables or state
 - S3 bucket has AES-256 server-side encryption
 - IAM role follows least-privilege principle
 - CloudWatch logs retained 30 days then auto-deleted
