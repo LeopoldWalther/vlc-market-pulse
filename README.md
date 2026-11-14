@@ -103,6 +103,28 @@ aws secretsmanager put-secret-value \
 
 `credentials.json` has the shape `{"api_key": "...", "api_secret": "...", "account": "<idealista account email>"}`. Delete the file afterwards; the collector picks up the new `AWSCURRENT` version on its next run.
 
+#### Moving the credentials to Parameter Store (one-off, FEATURE-019)
+
+The credentials are moving to SSM Parameter Store (`SecureString`, standard tier — no monthly charge). Until the cut-over is deployed, the collector still reads Secrets Manager and the command above stays valid.
+
+Copy both credential sets of an environment once, on your own machine:
+
+```bash
+dev/tools/migrate_idealista_credentials.sh dev
+dev/tools/migrate_idealista_credentials.sh prod
+```
+
+The script passes each value through stdin, prints no value and reports `match` or `MISMATCH` after comparing SHA-256 digests. Do not run it in CI or through an AI agent. The parameters are deliberately not Terraform resources, so a rebuilt environment needs this step (or the rotation command below) before the collector can run.
+
+After the cut-over, set or rotate a value with:
+
+```bash
+aws ssm put-parameter \
+  --name /vlc-market-pulse/<env>/idealista/<lvw|pmv>-api-credentials \
+  --type SecureString --overwrite \
+  --value file://credentials.json
+```
+
 Each environment issues its own ACM certificate for its subdomain. The `leopoldwalther.com` domain itself is managed by the [`leopoldwalther-website`](https://github.com/LeopoldWalther/leopoldwalther-website) repository; this repository only writes records under `vlc-market-pulse.leopoldwalther.com` and `vlc-market-pulse-dev.leopoldwalther.com`.
 
 Dev runs the collector in `test_mode` (1 page per operation) to stay within API limits; prod runs full collection. Per-layer detail lives in [DATA_COLLECTION_LAYER.md](documentation/DATA_COLLECTION_LAYER.md), [DATA_PROCESSING_LAYER.md](documentation/DATA_PROCESSING_LAYER.md), and [PIPELINE_HEALTH_LAYER.md](documentation/PIPELINE_HEALTH_LAYER.md).

@@ -205,3 +205,7 @@ completed one scheduled run on the new path.
   module variables `secret_name_*` are kept, only the ARN variables go (M2); the migration script
   lives in `dev/tools/` and proves equality by hash (M3); CI roles are denied parameter values on
   `*` (M4). Naming decision: `/vlc-market-pulse/{env}/idealista/...`.
+- **2026-11-14** — 19.3 script written (`dev/tools/migrate_idealista_credentials.sh`), owner run
+  pending. The stdin round trip (`--value file:///dev/stdin`, read back, SHA-256 compare) was tested
+  with a dummy non-secret parameter that was deleted afterwards. shellcheck is not installed
+  locally, so that criterion is unverified; `bash -n` passes.
