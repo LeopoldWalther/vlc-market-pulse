@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 import idealista_listings_collector as handler_module  # noqa: E402
 from bronze_collector import CollectionResult, IdealistaAPIError  # noqa: E402
+from common.secrets_provider import SsmParameterProvider  # noqa: E402
 from idealista_listings_collector import (  # noqa: E402
     BronzeCollector,
     build_collector,
@@ -48,6 +49,12 @@ class TestBuildCollector:
     def test_builds_collector_with_full_environment(self) -> None:
         collector = build_collector(FULL_ENV)
         assert isinstance(collector, BronzeCollector)
+
+    def test_reads_credentials_from_parameter_store(self) -> None:
+        """FEATURE-019: the composition root injects the SSM adapter."""
+        collector = build_collector(FULL_ENV)
+
+        assert isinstance(collector._secrets, SsmParameterProvider)
 
     @pytest.mark.parametrize("missing", sorted(FULL_ENV))
     def test_missing_env_var_raises_idealista_error(self, missing: str) -> None:

@@ -350,7 +350,7 @@ class BronzeCollector:
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-        logger.info("Retrieving credentials from Secrets Manager")
+        logger.info("Retrieving credentials")
         credentials_lvw = self._secrets.get_secret(self._secret_name_lvw)
         credentials_pmv = self._secrets.get_secret(self._secret_name_pmv)
 

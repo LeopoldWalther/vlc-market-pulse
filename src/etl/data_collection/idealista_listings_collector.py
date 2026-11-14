@@ -27,7 +27,7 @@ from bronze_collector import (  # noqa: F401 — re-exported for compatibility
 )
 from common.metrics_publisher import CloudWatchMetricsPublisher
 from common.object_store import S3ObjectStore
-from common.secrets_provider import SecretsManagerProvider
+from common.secrets_provider import SsmParameterProvider
 
 # Configure logging
 logger = logging.getLogger()
@@ -73,7 +73,9 @@ def build_collector(env: Dict[str, str]) -> BronzeCollector:
 
     return BronzeCollector(
         object_store=S3ObjectStore(bucket=s3_bucket),
-        secrets_provider=SecretsManagerProvider(),
+        # FEATURE-019: credentials are SecureString parameters in SSM
+        # Parameter Store; SECRET_NAME_* hold the parameter names.
+        secrets_provider=SsmParameterProvider(),
         api_client=IdealistaApiClient(),
         secret_name_lvw=secret_name_lvw,
         secret_name_pmv=secret_name_pmv,

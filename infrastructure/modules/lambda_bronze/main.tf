@@ -123,7 +123,19 @@ resource "aws_iam_role_policy" "lambda_s3" {
   })
 }
 
-# Policy for Secrets Manager read access
+data "aws_caller_identity" "current" {}
+
+locals {
+  # The credential parameters are created and rotated by the owner outside
+  # Terraform (FEATURE-019), so no value ever reaches the state. Parameter
+  # names start with "/", hence no separator after "parameter".
+  credential_parameter_arns = [
+    for name in [var.secret_name_lvw, var.secret_name_pmv] :
+    "arn:aws:ssm:${var.aws_region}:${data.aws_caller_identity.current.account_id}:parameter${name}"
+  ]
+}
+
+# Read access to the two credential parameters (SSM Parameter Store).
 resource "aws_iam_role_policy" "lambda_secrets" {
   name = "${var.environment}-idealista-collector-secrets"
   role = aws_iam_role.lambda_role.id
@@ -132,14 +144,23 @@ resource "aws_iam_role_policy" "lambda_secrets" {
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "secretsmanager:GetSecretValue"
-        ]
-        Resource = [
-          var.secret_arn_lvw,
-          var.secret_arn_pmv
-        ]
+        Effect   = "Allow"
+        Action   = ["ssm:GetParameter"]
+        Resource = local.credential_parameter_arns
+      },
+      {
+        # SecureString values are encrypted with the AWS-managed key aws/ssm.
+        # The key ARN is not referenced (the CI plan role cannot read KMS);
+        # the conditions limit the grant to SSM decrypting these parameters.
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = "*"
+        Condition = {
+          StringEquals = {
+            "kms:ViaService"                      = "ssm.${var.aws_region}.amazonaws.com"
+            "kms:EncryptionContext:PARAMETER_ARN" = local.credential_parameter_arns
+          }
+        }
       }
     ]
   })

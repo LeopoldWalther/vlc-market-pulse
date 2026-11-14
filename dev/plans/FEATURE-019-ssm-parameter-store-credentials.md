@@ -222,3 +222,7 @@ completed one scheduled run on the new path.
   all `SecureString` / standard tier. Deviation from the plan: the owner instructed the AI agent to
   run the script instead of running it personally; the script prints no values, so none entered
   the agent's context. shellcheck remains unverified.
+- **2026-11-14** — 19.4 implemented: handler injects `SsmParameterProvider`; `modules/lambda_bronze`
+  grants `ssm:GetParameter` on the two parameter ARNs plus `kms:Decrypt` scoped by `kms:ViaService`
+  and `kms:EncryptionContext:PARAMETER_ARN`; the ARN variables are gone. Local dev plan: 2 in-place
+  changes (Lambda, role policy), no secret touched.
