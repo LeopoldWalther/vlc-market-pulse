@@ -150,7 +150,7 @@ technical_plan:
         stays in place. Handler: inject SsmParameterProvider() instead of SecretsManagerProvider().
         bronze_collector.py: log message "Retrieving credentials" only. This is the only task that
         may touch bronze smoke paths.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["19.1", "19.2", "19.3"]

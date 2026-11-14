@@ -55,14 +55,15 @@ module "idealista_collector" {
 
   permissions_boundary_arn = data.aws_iam_policy.workload_boundary.arn
 
-  environment     = var.environment
-  aws_region      = var.aws_region
-  s3_bucket_name  = module.listings_bucket.listings_bucket_name
-  s3_bucket_arn   = module.listings_bucket.listings_bucket_arn
-  secret_name_lvw = module.idealista_secrets.secret_name_lvw
-  secret_arn_lvw  = module.idealista_secrets.secret_arn_lvw
-  secret_name_pmv = module.idealista_secrets.secret_name_pmv
-  secret_arn_pmv  = module.idealista_secrets.secret_arn_pmv
+  environment    = var.environment
+  aws_region     = var.aws_region
+  s3_bucket_name = module.listings_bucket.listings_bucket_name
+  s3_bucket_arn  = module.listings_bucket.listings_bucket_arn
+
+  # SSM Parameter Store SecureString parameters, created and rotated by the
+  # owner outside Terraform (FEATURE-019, see README).
+  secret_name_lvw = "/vlc-market-pulse/${var.environment}/idealista/lvw-api-credentials"
+  secret_name_pmv = "/vlc-market-pulse/${var.environment}/idealista/pmv-api-credentials"
 
   # Dev only collects 1 page per operation per week to stay within API limits.
   test_mode = true

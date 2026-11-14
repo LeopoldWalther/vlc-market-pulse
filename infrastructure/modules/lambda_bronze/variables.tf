@@ -24,23 +24,23 @@ variable "s3_bucket_arn" {
 }
 
 variable "secret_name_lvw" {
-  description = "Name of the Secrets Manager secret for lvw credentials"
+  description = "Name of the SSM Parameter Store SecureString holding the lvw credentials (starts with \"/\")"
   type        = string
-}
 
-variable "secret_arn_lvw" {
-  description = "ARN of the Secrets Manager secret for lvw credentials"
-  type        = string
+  validation {
+    condition     = startswith(var.secret_name_lvw, "/")
+    error_message = "secret_name_lvw must be an SSM parameter name starting with \"/\"."
+  }
 }
 
 variable "secret_name_pmv" {
-  description = "Name of the Secrets Manager secret for pmv credentials"
+  description = "Name of the SSM Parameter Store SecureString holding the pmv credentials (starts with \"/\")"
   type        = string
-}
 
-variable "secret_arn_pmv" {
-  description = "ARN of the Secrets Manager secret for pmv credentials"
-  type        = string
+  validation {
+    condition     = startswith(var.secret_name_pmv, "/")
+    error_message = "secret_name_pmv must be an SSM parameter name starting with \"/\"."
+  }
 }
 
 variable "test_mode" {
