@@ -236,5 +236,5 @@ fails with `AccessDenied` names the missing action in its log.
 |---|---|---|
 | Merge to `main` applies dev and the smoke test passes | apply and smoke green | ✅ [run 43281993227](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43281993227) (smoke green on re-run after the local `github-oidc` apply, 2026-11-13) |
 | Prod dispatch from a non-`main` branch | rejected before any step runs | ✅ [run 43517120867](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43517120867): "Branch … is not allowed to deploy to prod due to environment protection rules" |
-| Prod dispatch from `main` | waits for approval; after approval no or only expected changes | ⏳ to be run by the owner |
-| `deploy-frontend.yml` for prod | succeeds | ⏳ to be run by the owner |
+| Prod dispatch from `main` | waits for approval; after approval no or only expected changes | ✅ [run 43541532630](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43541532630) (2026-11-14): waited for the `prod` reviewer, apply green after approval; it shipped the gold aggregator code of FEATURE-016 |
+| `deploy-frontend.yml` for prod | succeeds | ✅ [run 43541303560](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43541303560) (2026-11-14), also gated by the `prod` reviewer |

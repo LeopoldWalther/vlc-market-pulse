@@ -469,7 +469,7 @@ technical_plan:
         terraform-deploy.yml, terraform-validate.yml plan), the README deploy section, and remove the
         secrets.tfvars instructions from documentation/DATA_COLLECTION_LAYER.md. Mark FEATURE-018
         complete in the plan file and dev/plans/README.md.
-      status: "in_progress"
+      status: "done"
       complexity: "low"
       estimated_hours: 1.5
       depends_on: ["18.10", "18.11"]
