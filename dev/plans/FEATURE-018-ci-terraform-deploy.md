@@ -1,6 +1,6 @@
 # FEATURE-018 — Working, secure Terraform deploys from GitHub Actions
 
-**Status:** 🟡 In progress · **Effort:** M (~10–12h) · **Priority:** High
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** M (~10–12h) · **Priority:** High
 **Branch root:** `feature/ci-terraform-deploy` · **Created:** 2026-10-24 · **Updated:** 2026-10-24
 
 > Authored by `/architect`. Reviewed by `/reviewer` (see `dev/reviews/REVIEW-FEATURE-018.md`).
@@ -322,3 +322,8 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   **Still open (owner):** dispatch `terraform-deploy.yml` for prod from `main` and approve it
   (expected: no changes), dispatch `deploy-frontend.yml` for prod, then record both run URLs in the
   verification table in `documentation/CI_CD.md` and mark 18.12 and the feature complete.
+- **2026-11-14** — 18.12 done, feature complete. `deploy-frontend.yml` for prod (run 43541303560)
+  and `terraform-deploy.yml` for prod from `main` (run 43541532630) both waited for the `prod`
+  reviewer and succeeded after approval; the smoke job was skipped for prod as designed. The prod
+  apply shipped the FEATURE-016 gold aggregator code. The merge of PR #62 also exercised the dev
+  path again (run 43541032280: apply and smoke green, direct-invoke path).

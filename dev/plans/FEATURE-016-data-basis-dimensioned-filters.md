@@ -1,6 +1,6 @@
 # FEATURE-016 — Data Basis: district/neighbourhood dimensions + population split for the remaining 4 charts
 
-**Status:** 🟡 In progress · **Effort:** M (~11.5 h, reviewer estimate) · **Priority:** Medium
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** M (~11.5 h, reviewer estimate) · **Priority:** Medium
 **Branch root:** `feature/data-basis-dimensioned-filters` · **Created:** 2026-07-19 · **Reviewed:** 2026-11-13
 
 > **Provenance:** this is a stub plan extracted verbatim from `@architect`'s original FEATURE-014
@@ -120,3 +120,12 @@ too (M2).
 ## Progress log
 
 - **2026-11-13** — Reviewed by `/reviewer`; technical plan v1.0 created (7 tasks, ~9.5 h).
+- **2026-11-13** — 16.1–16.6 implemented (PRs #58, #59; landed on `main` via #61 and #62).
+- **2026-11-14** — 16.7 done, feature complete. Frontend-first order kept in both environments
+  (review H1). dev: frontend run 43540789258, then merge of #62 → apply and smoke green (run
+  43541032280). prod: frontend run 43541303560, apply run 43541532630, then one direct
+  `prod-gold-aggregator` invoke (no state machine, no Idealista requests). Both `latest.json` files
+  carry `district`/`neighborhood` on the count datasets and the `data_basis_relevant` block;
+  `schema_version` stays `1.0`. Payload size (review M3), uncompressed: dev 2,312,395 → 3,754,287
+  bytes (+62 %), prod 2,672,258 → 4,285,024 bytes (+60 %) — more than the estimated +1 MB.
+  `weekly_listing_volume` dominates (~4,900 rows per block in prod). Not checked in a browser.

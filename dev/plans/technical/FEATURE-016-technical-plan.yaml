@@ -245,7 +245,7 @@ technical_plan:
         after (review M3). Prod: dispatch deploy-frontend for prod, then the approved prod terraform
         deploy, then one prod-gold-aggregator invoke. Never start a state-machine execution for this
         feature (Idealista quota). Mark FEATURE-016 complete in the plan file and dev/plans/README.md.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1.25
       depends_on: ["16.5"]
