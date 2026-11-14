@@ -1,6 +1,6 @@
 # FEATURE-019 — Move the Idealista credentials from Secrets Manager to SSM Parameter Store
 
-**Status:** 🔵 Planned · **Effort:** M (~8 h, reviewer estimate) · **Priority:** Low
+**Status:** 🟡 In progress · **Effort:** M (~8 h, reviewer estimate) · **Priority:** Low
 **Branch root:** `feature/ssm-parameter-store-credentials` · **Created:** 2026-11-14 · **Updated:** 2026-11-14
 
 > Authored by `/architect`. Reviewed by `/reviewer` (see `dev/reviews/REVIEW-FEATURE-019.md`).
@@ -205,6 +205,8 @@ completed one scheduled run on the new path.
   module variables `secret_name_*` are kept, only the ARN variables go (M2); the migration script
   lives in `dev/tools/` and proves equality by hash (M3); CI roles are denied parameter values on
   `*` (M4). Naming decision: `/vlc-market-pulse/{env}/idealista/...`.
+- **2026-11-14** — 19.1 done: `SsmParameterProvider` added behind the `SecretsProvider` Protocol
+  (5 new tests, moto SSM). No caller uses it yet.
 - **2026-11-14** — 19.2 implemented, local apply pending. Local plan: exactly three in-place
   changes (boundary, apply `guard-rails` policy, plan role policy). `simulate_apply_role.py --plan`:
   34/34; the two new SSM cases use the new `explicit-deny` expectation and fail against the
