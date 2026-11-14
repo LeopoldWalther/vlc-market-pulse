@@ -114,7 +114,7 @@ Neighborhoods where either the sale or rent side has fewer than `min_count` list
 
 ---
 
-## Data Basis Block (FEATURE-011)
+## Data Basis Blocks (FEATURE-011, FEATURE-016)
 
 `data_basis` is an **additive top-level sibling** of `general`/`relevant`, introduced to power a
 "Data Basis" dashboard tab that explains *how* the underlying data was collected (search
@@ -138,16 +138,37 @@ parameters, weekly collection volume, and listing distributions) — schema-vers
 - **Strategy classes live in `gold_aggregator.py` only.** The legacy pure entry point
   `gold_aggregate.build_aggregation_json()` intentionally does **not** emit `data_basis` — only
   `GoldAggregator` (the production path used by `gold_aggregation_lambda.py`) does.
+- **Count datasets carry `district` and `neighborhood` (FEATURE-016).** `weekly_listing_volume`,
+  `size_histogram_10sqm`, `rooms_distribution` and `price_per_area_histogram` are grouped by
+  district and neighbourhood in addition to their own grain, so the dashboard can filter them by
+  scope. Summing `count_listings` over the two fields yields the count at the dataset's own grain.
+  Silver drops rows without a neighbourhood, so no listing is lost by the extra grouping.
+
+### `data_basis_relevant` (FEATURE-016)
+
+`data_basis_relevant` is a second additive top-level block, emitted directly after `data_basis`. It
+holds **the same datasets with the same fields**, computed over the relevant population only
+(`relevant_filter`), so the Data Basis tab can follow the population toggle. `search_config` is
+identical in both blocks.
+
+The relevant filter runs **before** each strategy's dedup, exactly as for the `relevant` block. A
+listing whose newest snapshot no longer matches the filter is therefore still counted through its
+last matching snapshot.
+
+`data_basis` keeps its unfiltered meaning and `schema_version` stays `"1.0"`: both changes are
+additive fields or keys. Consumers that sum counts must group by their own grain; consumers that
+read a document written before FEATURE-016 find neither the two location fields on the count
+datasets nor the `data_basis_relevant` key.
 
 ### Datasets
 
 | Dataset | Dedup | Description |
 |---|---|---|
 | `search_config` | n/a (static) | Public, stable serialization of the shared Idealista search parameters (see [Search Config](#search-config) below). Always exactly one record. |
-| `weekly_listing_volume` | per-snapshot | Listing counts per `(operation, snapshot_date)`, scoped to the 3 scope districts. |
-| `size_histogram_10sqm` | latest-by-property | Listing counts binned into deterministic 10 m² buckets, per operation. |
-| `rooms_distribution` | latest-by-property | Listing counts per `(operation, rooms)`. |
-| `price_per_area_histogram` | latest-by-property | Listing counts binned by `priceByArea` (EUR/m²), with **operation-specific bin widths** (sale: 250 EUR/m², rent: 1 EUR/m²) — sale and rent price/m² live on very different scales, so sharing bin edges would make one side unreadable. |
+| `weekly_listing_volume` | per-snapshot | Listing counts per `(operation, district, neighborhood, snapshot_date)`, scoped to the 3 scope districts. |
+| `size_histogram_10sqm` | latest-by-property | Listing counts binned into deterministic 10 m² buckets, per `(operation, district, neighborhood)`. |
+| `rooms_distribution` | latest-by-property | Listing counts per `(operation, district, neighborhood, rooms)`. |
+| `price_per_area_histogram` | latest-by-property | Listing counts per `(operation, district, neighborhood)` binned by `priceByArea` (EUR/m²), with **operation-specific bin widths** (sale: 250 EUR/m², rent: 1 EUR/m²) — sale and rent price/m² live on very different scales, so sharing bin edges would make one side unreadable. |
 | `listing_location_grid_last_3m` | latest-by-property + rolling window | Privacy-safe geo aggregate for the map (see [Privacy-Safe Location Grid](#privacy-safe-location-grid) below). |
 | `listing_locations_last_3m` | latest-by-property + rolling window | Raw (unrounded) per-listing coordinates for the real-map view (see [Per-Listing Locations](#per-listing-locations) below). Operator decision (2026-07-18): precise per-listing location disclosure is acceptable for this project. |
 
@@ -263,16 +284,16 @@ Example record:
     }
   ],
   "weekly_listing_volume": [
-    { "operation": "sale", "snapshot_date": "2023-04-09", "count_listings": 42 }
+    { "operation": "sale", "district": "Extramurs", "neighborhood": "La Petxina", "snapshot_date": "2023-04-09", "count_listings": 42 }
   ],
   "size_histogram_10sqm": [
-    { "operation": "sale", "bin_start_m2": 100, "bin_end_m2": 110, "count_listings": 15 }
+    { "operation": "sale", "district": "Extramurs", "neighborhood": "La Petxina", "bin_start_m2": 100, "bin_end_m2": 110, "count_listings": 15 }
   ],
   "rooms_distribution": [
-    { "operation": "sale", "rooms": 3, "count_listings": 28 }
+    { "operation": "sale", "district": "Extramurs", "neighborhood": "La Petxina", "rooms": 3, "count_listings": 28 }
   ],
   "price_per_area_histogram": [
-    { "operation": "sale", "bin_start_price_m2": 2250.0, "bin_end_price_m2": 2500.0, "count_listings": 9 }
+    { "operation": "sale", "district": "Extramurs", "neighborhood": "La Petxina", "bin_start_price_m2": 2250.0, "bin_end_price_m2": 2500.0, "count_listings": 9 }
   ],
   "listing_location_grid_last_3m": [
     { "operation": "sale", "district": "Extramurs", "neighborhood": "La Petxina", "latitude": 39.474, "longitude": -0.39, "count_listings": 7 }
@@ -306,7 +327,8 @@ This schema is **frozen**. FEATURE-005 depends on this exact shape. Do not chang
   },
   "general": { ... },
   "relevant": { ... },
-  "data_basis": { ... }
+  "data_basis": { ... },
+  "data_basis_relevant": { ... }
 }
 ```
 

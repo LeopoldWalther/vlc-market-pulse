@@ -118,11 +118,22 @@ The dashboard is split into two tabs — **Trend Analysis** (the original eight 
   `#data-basis` on first page load is handled by resolving the starting hash before the first
   fetch, then re-checking after `run()`'s data load completes (the lazy-render guard is a no-op
   until `cachedData` exists).
-- **Filter isolation by construction** — `renderDataBasisTab()` always renders against
-  `cachedData.data_basis` directly; it is never passed through `applyScope()` or the active
-  population toggle. The existing district/neighbourhood/population filters therefore only ever
-  affect Trend Analysis charts, with no conditional logic required to enforce this — the Data
-  Basis renderers simply never see scoped data.
+- **Data Basis follows the shared filter-bar (FEATURE-016)** — `renderDataBasisTab()` picks the
+  block for the active population (`activeDataBasisBlock()`: `data_basis_relevant` when "relevant"
+  is selected, otherwise `data_basis`), narrows it with `applyScope()` and hands the result to every
+  Data Basis renderer. A scope change or a population change re-renders the tab if it has been
+  visited. The search-config panel is static and always reads `data_basis`.
+- **Re-aggregation after filtering** — the gold layer emits the four count datasets split by
+  district and neighbourhood. `filters.js` only decides which rows survive; each count renderer
+  then calls `sumCountsBy(rows, GRAIN)` from `src/reaggregate.js` to add the surviving rows back to
+  its own grain (for example `operation` + size bin). The renderer owns its grain, the helper owns
+  the arithmetic.
+- **Works against older gold documents** — `sumCountsBy()` is a no-op on rows that already sit at
+  the chart grain, rows without a `district` field pass the scope filter untouched, and
+  `activeDataBasisBlock()` falls back to `data_basis` when `data_basis_relevant` is missing. One
+  frontend build therefore renders both the pre- and post-FEATURE-016 gold shape. **Deploy order
+  per environment: frontend first, then the gold Lambda** — the reverse order shows every bin once
+  per neighbourhood until the frontend catches up.
 
 ## Data Basis tab: chart renderers & search-config panel
 
@@ -235,6 +246,7 @@ frontend/
 │   ├── summary.js                      # Pure summaryStats + formatKpi (KPI headline row)
 │   ├── tab_state.js                    # Pure TAB_IDS/resolveActiveTab/buildTabHash
 │   ├── search_config.js                # Pure formatSearchConfigSummary (Data Basis panel)
+│   ├── reaggregate.js                  # Pure sumCountsBy (sum filtered count rows back to chart grain)
 │   └── charts/
 │       ├── price_time_series.js        # Factory: priceTimeSeriesRentRenderer + SaleRenderer
 │       ├── price_time_series_district.js # Factory: district rent + sale

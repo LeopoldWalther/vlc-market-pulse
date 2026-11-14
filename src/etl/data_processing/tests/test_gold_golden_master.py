@@ -224,6 +224,29 @@ class TestGoldGoldenMaster:
         assert payload["data_basis"]["listing_location_grid_last_3m"] == []
         assert payload["data_basis"]["listing_locations_last_3m"] == []
 
+    def test_golden_master_includes_data_basis_relevant_block(self) -> None:
+        """
+        FEATURE-016 (task 16.5): ``data_basis_relevant`` carries the same
+        datasets as ``data_basis``, restricted to the relevant population,
+        and schema_version stays "1.0" (additive key).
+        """
+        payload = json.loads(GOLDEN_MASTER_PATH.read_bytes())
+
+        assert payload["schema_version"] == "1.0"
+        assert list(payload["data_basis_relevant"].keys()) == list(
+            payload["data_basis"].keys()
+        )
+        # Non-trivial content: the fixture contains relevant listings.
+        assert payload["data_basis_relevant"]["weekly_listing_volume"]
+
+        def total(block: str) -> int:
+            return sum(
+                row["count_listings"] for row in payload[block]["weekly_listing_volume"]
+            )
+
+        # The relevant population is a strict subset of the fixture.
+        assert 0 < total("data_basis_relevant") < total("data_basis")
+
 
 class TestGeneralRelevantCompatibility:
     """
