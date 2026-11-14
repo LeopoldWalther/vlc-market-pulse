@@ -304,7 +304,9 @@ function buildFakeDocument() {
   };
 }
 
-function buildGoldFixture({ withRelevant = false } = {}) {
+function buildGoldFixture({
+  withRelevant = false, dimensionedDataBasis = false, withDataBasisRelevant = false,
+} = {}) {
   const document = {
     schema_version: '1.0',
     generated_at: '2026-06-01T12:00:00Z',
@@ -353,6 +355,23 @@ function buildGoldFixture({ withRelevant = false } = {}) {
       rent_vs_sale_ratio: [],
       rent_vs_sale_ratio_time_series: [],
       boxplot_by_neighborhood: [],
+    };
+  }
+  if (dimensionedDataBasis) {
+    // FEATURE-016 gold shape: the count datasets carry district/neighbourhood.
+    document.data_basis.weekly_listing_volume = [
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', snapshot_date: '2026-05-25', count_listings: 5 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', snapshot_date: '2026-05-25', count_listings: 7 },
+    ];
+  }
+  if (withDataBasisRelevant) {
+    document.data_basis_relevant = {
+      ...document.data_basis,
+      weekly_listing_volume: [
+        { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', snapshot_date: '2026-05-25', count_listings: 2 },
+        { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', snapshot_date: '2026-05-25', count_listings: 1 },
+      ],
+      listing_locations_last_3m: [],
     };
   }
   return document;
@@ -838,9 +857,10 @@ describe('Shared filter-bar (FEATURE-014, task 14.13)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Scenario: FEATURE-014 task 14.14 — only listing-locations-map is
-// district/neighbourhood scope-aware on the Data Basis tab; the other 4
-// Data Basis charts stay unscoped until FEATURE-016 re-dimensions them.
+// Scenario: FEATURE-014 task 14.14 — listing-locations-map is
+// district/neighbourhood scope-aware on the Data Basis tab. Rows of the
+// other charts that carry no district (gold documents written before
+// FEATURE-016) pass the scope filter untouched.
 // ---------------------------------------------------------------------------
 
 describe('Scoped Data Basis map (FEATURE-014, task 14.14)', () => {
@@ -894,12 +914,102 @@ describe('Scoped Data Basis map (FEATURE-014, task 14.14)', () => {
     expect(traceNames).not.toContain('El Cabanyal');
   });
 
-  it('leaves weekly-listing-volume (and the other unscoped charts) unaffected by the scope change', () => {
+  it('leaves weekly-listing-volume rows without a district field (pre-FEATURE-016 gold shape) unaffected by the scope change', () => {
     const traces = lastTracesFor(harness.dataBasisContainers['weekly-listing-volume']);
     expect(traces).toBeTruthy();
-    // Still reflects the full, unfiltered data_basis.weekly_listing_volume
-    // fixture row — scope filtering never reached this renderer.
+    // The fixture row carries no district, so the scope filter has nothing
+    // to match against and keeps it — an old gold document still renders.
     const saleTrace = traces.find((trace) => trace.name === 'sale');
     expect(saleTrace.y).toEqual([5]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Scenario: FEATURE-016 task 16.3 — every Data Basis chart follows the
+// district/neighbourhood scope and the population toggle.
+// ---------------------------------------------------------------------------
+
+async function bootDataBasis(goldFixture) {
+  vi.resetModules();
+  const harness = buildFakeDocument();
+  const plotlyReact = vi.fn(async () => {});
+  const fakePlotly = { newPlot: vi.fn(async () => {}), react: plotlyReact, Plots: { resize: vi.fn() } };
+
+  vi.stubGlobal('document', harness.fakeDocument);
+  vi.stubGlobal('window', makeFakeWindow());
+  vi.stubGlobal('Plotly', fakePlotly);
+  vi.stubGlobal('fetch', vi.fn(async (url) => ({
+    ok: true,
+    json: async () => (String(url).includes('pipeline_health') ? buildPipelineHealthV11Fixture() : goldFixture),
+  })));
+
+  await import('../app.js');
+  await settle();
+  // Data Basis is rendered lazily on first activation.
+  harness.tabDataBasis.dispatchEvent({ type: 'click' });
+  await settle();
+
+  const lastTracesFor = (id) => {
+    const container = harness.dataBasisContainers[id];
+    const calls = plotlyReact.mock.calls.filter(([c]) => c === container);
+    return calls[calls.length - 1]?.[1];
+  };
+  return { harness, lastTracesFor };
+}
+
+async function selectPopulation(harness, radio) {
+  radio.checked = true;
+  harness.populationToggle.dispatchEvent({ type: 'change', target: radio });
+  await settle();
+}
+
+describe('Data Basis scope filtering for dimensioned datasets (FEATURE-016, task 16.3)', () => {
+  it('narrows weekly-listing-volume to the selected district', async () => {
+    const { harness, lastTracesFor } = await bootDataBasis(buildGoldFixture({ dimensionedDataBasis: true }));
+
+    // District options come from the general block: only 'Extramurs'.
+    const checkbox = harness.districtsFieldset.querySelector('input');
+    checkbox.checked = true;
+    harness.districtsFieldset.dispatchEvent({ type: 'change', target: checkbox });
+    await settle();
+
+    const sale = lastTracesFor('weekly-listing-volume').find((trace) => trace.name === 'sale');
+    expect(sale.y).toEqual([5]);
+  });
+});
+
+describe('Data Basis population toggle (FEATURE-016, task 16.3)', () => {
+  it('re-renders Data Basis from data_basis_relevant when the relevant population is selected', async () => {
+    const { harness, lastTracesFor } = await bootDataBasis(
+      buildGoldFixture({ withRelevant: true, dimensionedDataBasis: true, withDataBasisRelevant: true }),
+    );
+
+    await selectPopulation(harness, harness.populationRelevantRadio);
+
+    const sale = lastTracesFor('weekly-listing-volume').find((trace) => trace.name === 'sale');
+    expect(sale.y).toEqual([3]);
+  });
+
+  it('switches back to data_basis when the general population is re-selected', async () => {
+    const { harness, lastTracesFor } = await bootDataBasis(
+      buildGoldFixture({ withRelevant: true, dimensionedDataBasis: true, withDataBasisRelevant: true }),
+    );
+
+    await selectPopulation(harness, harness.populationRelevantRadio);
+    await selectPopulation(harness, harness.populationGeneralRadio);
+
+    const sale = lastTracesFor('weekly-listing-volume').find((trace) => trace.name === 'sale');
+    expect(sale.y).toEqual([12]);
+  });
+
+  it('falls back to data_basis when the gold document has no data_basis_relevant block', async () => {
+    const { harness, lastTracesFor } = await bootDataBasis(
+      buildGoldFixture({ withRelevant: true, dimensionedDataBasis: true }),
+    );
+
+    await selectPopulation(harness, harness.populationRelevantRadio);
+
+    const sale = lastTracesFor('weekly-listing-volume').find((trace) => trace.name === 'sale');
+    expect(sale.y).toEqual([12]);
   });
 });

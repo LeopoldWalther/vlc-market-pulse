@@ -9,6 +9,12 @@
  */
 
 import { buildLayout } from '../chart_theme.js';
+import { sumCountsBy } from '../reaggregate.js';
+
+// Chart grain. The gold layer may emit these rows additionally split by
+// district/neighbourhood (FEATURE-016) so they can be scope-filtered; the
+// chart itself plots one value per combination of these fields.
+const GRAIN = ['operation', 'bin_start_m2', 'bin_end_m2'];
 
 /** @param {{bin_start_m2: number, bin_end_m2: number}} row @returns {string} */
 function binLabel(row) {
@@ -53,7 +59,7 @@ export const sizeHistogramRenderer = {
    * @returns {{data: Array<object>, layout: object}}
    */
   render(dataBasis, context = { viewport: 'desktop', colorScheme: 'light' }) {
-    const rows = dataBasis?.size_histogram_10sqm ?? [];
+    const rows = sumCountsBy(dataBasis?.size_histogram_10sqm, GRAIN);
     const layout = buildLayout({
       viewport: context.viewport,
       colorScheme: context.colorScheme,

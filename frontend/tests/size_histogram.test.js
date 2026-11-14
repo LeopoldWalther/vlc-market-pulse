@@ -38,3 +38,24 @@ describe('sizeHistogramRenderer', () => {
     expect(sizeHistogramRenderer.render(null).layout).toBeTypeOf('object');
   });
 });
+
+describe('sizeHistogramRenderer with district/neighbourhood-dimensioned rows (FEATURE-016)', () => {
+  const dimensioned = {
+    size_histogram_10sqm: [
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', bin_start_m2: 100, bin_end_m2: 110, count_listings: 9 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', bin_start_m2: 100, bin_end_m2: 110, count_listings: 6 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', bin_start_m2: 110, bin_end_m2: 120, count_listings: 20 },
+      { operation: 'rent', district: 'Extramurs', neighborhood: 'La Roqueta', bin_start_m2: 100, bin_end_m2: 110, count_listings: 10 },
+    ],
+  };
+
+  it('collapses the rows back to one bar per bin with summed counts', () => {
+    const fig = sizeHistogramRenderer.render(dimensioned);
+    const sale = fig.data.find((t) => t.meta?.operation === 'sale');
+    expect(sale.x).toEqual(['100-110', '110-120']);
+    expect(sale.y).toEqual([15, 20]);
+    const rent = fig.data.find((t) => t.meta?.operation === 'rent');
+    expect(rent.x).toEqual(['100-110']);
+    expect(rent.y).toEqual([10]);
+  });
+});

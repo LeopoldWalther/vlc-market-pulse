@@ -67,7 +67,7 @@ infrastructure/
 │   ├── secrets/        # Secrets Manager secrets for API credentials
 │   └── sns/            # SNS topic for error alerting
 └── environments/
-    ├── dev/            # Development environment (terraform.tfvars + secrets.tfvars)
+    ├── dev/            # Development environment (terraform.tfvars)
     └── prod/           # Production environment
 ```
 
@@ -107,8 +107,11 @@ where they remove duplication or coupling — never for their own sake. See
 | Workflow | Trigger | Purpose |
 |---|---|---|
 | `python-test.yml` | Push / PR | Run pytest, mypy, ruff, black |
-| `terraform-validate.yml` | Push / PR | `terraform fmt -check` + `terraform validate` |
-| `deploy-lambda.yml` | Merge to main | Package and deploy Lambda to AWS |
+| `terraform-validate.yml` | Push / PR | `terraform fmt -check` + `terraform validate`; on PRs a read-only plan for dev and prod as a PR comment |
+| `terraform-deploy.yml` | Merge to main / manual | Apply dev on merge and smoke-test it; apply prod on manual dispatch after approval |
+| `deploy-frontend.yml` | Manual | Upload the frontend and invalidate CloudFront |
+
+See `documentation/CI_CD.md` for the roles, the deployment flow and the steps that stay local.
 
 ## Tech Stack
 
