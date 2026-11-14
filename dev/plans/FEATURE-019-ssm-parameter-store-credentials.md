@@ -211,3 +211,6 @@ completed one scheduled run on the new path.
   changes (boundary, apply `guard-rails` policy, plan role policy). `simulate_apply_role.py --plan`:
   34/34; the two new SSM cases use the new `explicit-deny` expectation and fail against the
   currently deployed role (implicit deny only), as intended.
+- **2026-11-14** — 19.2 done. Applied `shared/github-oidc` locally on the owner's instruction (3
+  in-place changes). Deployed apply role: 34/34; plan role: `explicitDeny` for `ssm:GetParameter`
+  and `ssm:PutParameter`; `iam_action_inventory.sh --check` passes; follow-up plan: no changes.

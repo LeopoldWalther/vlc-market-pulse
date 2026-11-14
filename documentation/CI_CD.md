@@ -185,11 +185,10 @@ python simulate_apply_role.py --plan apply.json            # before apply
 python simulate_apply_role.py --role github-actions-apply  # after apply
 ```
 
-Result (2026-11-13, `--role github-actions-apply` against the deployed role, 32/32 as expected):
+Result (2026-11-14, `--role github-actions-apply` against the deployed role, 34/34 as expected):
 
 `explicit-deny` requires a matching Deny statement; a merely absent Allow fails the case.
-¹ Added with FEATURE-019 task 19.2 (2026-11-14): result of `--plan` against the planned policy,
-34/34 as expected. The local apply of `shared/github-oidc` is still pending.
+¹ Added with FEATURE-019 task 19.2; the plan role returns `explicitDeny` for both actions as well.
 
 | Action | Resource | Expected | Result |
 |---|---|---|---|
