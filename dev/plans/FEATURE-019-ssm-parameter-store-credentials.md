@@ -1,6 +1,6 @@
 # FEATURE-019 — Move the Idealista credentials from Secrets Manager to SSM Parameter Store
 
-**Status:** 🔵 Planned · **Effort:** S–M (~7 h) · **Priority:** Low
+**Status:** 🔵 Planned · **Effort:** M (~8 h, reviewer estimate) · **Priority:** Low
 **Branch root:** `feature/ssm-parameter-store-credentials` · **Created:** 2026-11-14 · **Updated:** 2026-11-14
 
 > Authored by `/architect`. Reviewed by `/reviewer` (see `dev/reviews/REVIEW-FEATURE-019.md`).
@@ -57,10 +57,12 @@ FEATURE-018: no credential value in Terraform, in the state, or readable by CI.
 - **Unchanged payload:** each parameter holds the same JSON document as the secret today
   (`{"api_key": "...", "api_secret": "..."}`, far below the 4 KB standard-tier limit). One parameter
   per credential set keeps the Protocol contract and the rotation procedure one-to-one.
-- **Parameters are not Terraform resources.** `aws_ssm_parameter` stores the value in the state
-  (the pinned provider `< 6.0` has no write-only value), which would undo FEATURE-018 task 18.2.
-  The owner creates and rotates the parameters with the CLI; Terraform only derives their names
-  and ARNs from a naming convention for IAM and for the Lambda environment variables.
+- **Parameters are not Terraform resources.** A managed `aws_ssm_parameter` is read by the
+  provider on every refresh, so the CI plan and apply roles would need read and decrypt access to
+  the credential — even with the write-only `value_wo` attribute, which only keeps the value out
+  of the state. That would undo FEATURE-018. The owner creates and rotates the parameters with
+  the CLI; Terraform only derives their names and ARNs from a naming convention for IAM and for
+  the Lambda environment variables.
 - **Naming:** `/vlc-market-pulse/{env}/idealista/lvw-api-credentials` and
   `.../pmv-api-credentials`, encrypted with the AWS-managed key `alias/aws/ssm` (no key charge).
 - **Deliberately not done:** no caching layer, no Parameters-and-Secrets Lambda extension, no
@@ -196,3 +198,10 @@ completed one scheduled run on the new path.
 ## Progress log
 
 - **2026-11-14** — Plan created.
+- **2026-11-14** — Reviewed: ⚠️ Changes Recommended, no blockers
+  (`dev/reviews/REVIEW-FEATURE-019.md`). The technical plan (7 tasks, ~8 h) folds in all findings
+  and supersedes the task details above where they differ: explicit `kms:Decrypt` scoped by
+  `kms:ViaService` and the parameter ARN (M1); the environment variables `SECRET_NAME_*` and the
+  module variables `secret_name_*` are kept, only the ARN variables go (M2); the migration script
+  lives in `dev/tools/` and proves equality by hash (M3); CI roles are denied parameter values on
+  `*` (M4). Naming decision: `/vlc-market-pulse/{env}/idealista/...`.

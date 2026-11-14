@@ -1,0 +1,338 @@
+technical_plan:
+  metadata:
+    for_feature: "FEATURE-019"
+    title: "Move the Idealista credentials from Secrets Manager to SSM Parameter Store"
+    created_by: "/reviewer"
+    created_at: "2026-11-14"
+    version: "1.0"
+    total_tasks: 7
+    estimated_hours: 8
+    risk_level: "medium"
+    critical_path: ["19.2", "19.3", "19.4", "19.5", "19.6", "19.7"]
+    reviewed_plan: "dev/reviews/REVIEW-FEATURE-019.md"
+
+  validation:
+    required_checks:
+      - "python-lint-and-test"
+      - "terraform-validate"
+      - "workflow-consistency"
+    min_coverage: 80
+
+  tasks:
+    - id: "19.1"
+      title: "SsmParameterProvider adapter"
+      description: >
+        Add SsmParameterProvider to src/etl/common/secrets_provider.py (Adapter behind the existing
+        SecretsProvider Protocol). get_secret(name) calls GetParameter(Name=name,
+        WithDecryption=True), JSON-decodes Parameter.Value and returns the mapping. ClientError,
+        invalid JSON, a missing Value key and a decoded payload that is not a JSON object all raise
+        SecretError (review L3). The boto3 client is private and constructor-injected, created
+        lazily when omitted, mirroring SecretsManagerProvider. Export it from common/__init__.py.
+        Add the ssm extra to moto in requirements-dev.txt. No caller changes in this task.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: []
+      branch: "feature/ssm-parameter-store-credentials/19.1-ssm-provider"
+      commit_message: "feat(common): add SSM Parameter Store secrets provider"
+      acceptance_criteria:
+        - "RED: tests in common/tests/test_secrets_provider.py fail because SsmParameterProvider does not exist"
+        - "GREEN: a SecureString parameter holding a JSON object is returned as a dict (moto ssm)"
+        - "GREEN: the adapter requests decryption (the returned value is the plaintext JSON, not ciphertext)"
+        - "GREEN: missing parameter, invalid JSON and a non-object JSON payload each raise SecretError"
+        - "GREEN: isinstance(SsmParameterProvider(client), SecretsProvider) holds (runtime-checkable Protocol)"
+        - "GREEN: existing SecretsManagerProvider and BronzeCollector tests pass unchanged"
+      allowed_files:
+        - "src/etl/common/secrets_provider.py"
+        - "src/etl/common/__init__.py"
+        - "src/etl/common/tests/test_secrets_provider.py"
+        - "src/etl/requirements-dev.txt"
+      forbidden_files:
+        - "src/etl/data_collection/**"
+        - "infrastructure/**"
+      can_run_parallel_with: ["19.2", "19.3"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "src/etl/common/secrets_provider.py"
+        - "src/etl/common/__init__.py"
+        - "src/etl/common/tests/test_secrets_provider.py"
+        - "src/etl/requirements-dev.txt"
+
+    - id: "19.2"
+      title: "IAM groundwork: boundary allows SSM read, CI roles are denied the values"
+      description: >
+        infrastructure/shared/github-oidc/main.tf, additive only. (1) Workload boundary: allow
+        ssm:GetParameter on arn:aws:ssm:*:<account>:parameter/vlc-market-pulse/*/idealista/* and
+        kms:Decrypt on "*" conditioned on kms:ViaService = ssm.<region>.amazonaws.com and
+        kms:EncryptionContext:PARAMETER_ARN matching the same parameter ARN pattern (review M1; no
+        aws_kms_alias data source). Keep IdealistaSecretsRead for now. (2) Plan and apply roles:
+        extend the value deny to ssm:GetParameter, ssm:GetParameters, ssm:GetParametersByPath,
+        ssm:GetParameterHistory, ssm:PutParameter, ssm:DeleteParameter and ssm:DeleteParameters on
+        "*" (review M4). (3) Extend the simulate_apply_role.py matrix first, then the policy.
+        The stack is applied LOCALLY, never by CI.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.25
+      depends_on: []
+      branch: "feature/ssm-parameter-store-credentials/19.2-iam-groundwork"
+      commit_message: "feat(infra): allow workloads to read Idealista parameters and deny them to CI"
+      acceptance_criteria:
+        - "RED: new matrix cases (apply role: ssm:GetParameter and ssm:PutParameter on a prod Idealista parameter expect deny) fail against the planned policy before the change"
+        - "GREEN: simulate_apply_role.py --plan passes with the new cases; all existing cases unchanged"
+        - "GREEN: local terraform plan shows only in-place changes to the boundary policy and the plan/apply role policies"
+        - "GREEN: after the local apply, simulate_apply_role.py --role github-actions-apply reports 0 failures"
+        - "GREEN: dev/tools/iam_action_inventory.sh --check still passes"
+        - "GREEN: the matrix table in documentation/CI_CD.md is regenerated"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/simulate_apply_role.py"
+        - "documentation/CI_CD.md"
+      forbidden_files:
+        - "infrastructure/environments/**"
+        - "infrastructure/modules/**"
+        - "src/**"
+      can_run_parallel_with: ["19.1", "19.3"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/simulate_apply_role.py"
+        - "documentation/CI_CD.md"
+
+    - id: "19.3"
+      title: "Value-blind migration script; owner creates the parameters"
+      description: >
+        Add dev/tools/migrate_idealista_credentials.sh <env>. For lvw and pmv it reads the secret
+        string of <env>/idealista/<set>-api-credentials and writes it as SecureString to
+        /vlc-market-pulse/<env>/idealista/<set>-api-credentials, passing the value through a pipe
+        with --value file:///dev/stdin (never as an argument, no set -x, no --debug). It then
+        compares a SHA-256 of the secret value with a SHA-256 of the decrypted parameter value and
+        prints only "match" or "MISMATCH" per credential set, exiting non-zero on a mismatch
+        (review M3). Idempotent via --overwrite. Document the one-off step and the new rotation
+        command in the README. OWNER STEP: the owner runs the script for dev and prod. It is never
+        run by CI or by an AI agent, because it handles credential values.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: []
+      branch: "feature/ssm-parameter-store-credentials/19.3-migration-script"
+      commit_message: "chore(tools): add value-blind migration script for Idealista credentials"
+      acceptance_criteria:
+        - "GREEN: shellcheck passes; the script refuses any argument other than dev or prod"
+        - "GREEN: the script contains no echo/printf of a value, no set -x and passes values only via stdin"
+        - "GREEN (owner): the script prints match for both credential sets in dev and in prod"
+        - "GREEN (owner): aws ssm describe-parameters lists the four parameters as SecureString, standard tier"
+      allowed_files:
+        - "dev/tools/migrate_idealista_credentials.sh"
+        - "README.md"
+      forbidden_files:
+        - "src/**"
+        - "infrastructure/**"
+      can_run_parallel_with: ["19.1", "19.2"]
+      reversible: true
+      files_to_create:
+        - "dev/tools/migrate_idealista_credentials.sh"
+      files_to_modify:
+        - "README.md"
+
+    - id: "19.4"
+      title: "Cut-over: bronze Lambda reads the credentials from Parameter Store"
+      description: >
+        GATE (review L1): start only when 19.2 is applied locally and 19.3 reported match in dev
+        AND prod. modules/lambda_bronze: keep variables secret_name_lvw / secret_name_pmv and the
+        environment variables SECRET_NAME_LVW / SECRET_NAME_PMV (review M2, update descriptions);
+        remove secret_arn_lvw / secret_arn_pmv; build the parameter ARNs in the module as
+        arn:aws:ssm:<region>:<account>:parameter + name (names start with "/"). Replace the
+        lambda_secrets role policy with ssm:GetParameter on the two ARNs plus kms:Decrypt on "*"
+        with the same two conditions as the boundary. dev and prod main.tf pass
+        /vlc-market-pulse/<env>/idealista/<set>-api-credentials from a local; the secrets module
+        stays in place. Handler: inject SsmParameterProvider() instead of SecretsManagerProvider().
+        bronze_collector.py: log message "Retrieving credentials" only. This is the only task that
+        may touch bronze smoke paths.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["19.1", "19.2", "19.3"]
+      branch: "feature/ssm-parameter-store-credentials/19.4-cut-over"
+      commit_message: "feat(bronze): read Idealista credentials from SSM Parameter Store"
+      acceptance_criteria:
+        - "RED: a handler test asserting that the built collector holds an SsmParameterProvider fails"
+        - "GREEN: handler tests pass; the missing-environment-variable test is unchanged"
+        - "GREEN: BronzeCollector tests pass without modification"
+        - "GREEN: terraform validate passes for dev and prod; the PR plan shows changes to the bronze Lambda and its role policy only, and no secret resource is destroyed"
+        - "GREEN: no secretsmanager action remains in modules/lambda_bronze"
+      allowed_files:
+        - "infrastructure/modules/lambda_bronze/main.tf"
+        - "infrastructure/modules/lambda_bronze/variables.tf"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/prod/main.tf"
+        - "src/etl/data_collection/idealista_listings_collector.py"
+        - "src/etl/data_collection/bronze_collector.py"
+        - "src/etl/data_collection/tests/test_idealista_collector.py"
+      forbidden_files:
+        - "infrastructure/modules/secrets/**"
+        - "infrastructure/shared/**"
+        - "src/etl/common/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/modules/lambda_bronze/main.tf"
+        - "infrastructure/modules/lambda_bronze/variables.tf"
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/prod/main.tf"
+        - "src/etl/data_collection/idealista_listings_collector.py"
+        - "src/etl/data_collection/bronze_collector.py"
+        - "src/etl/data_collection/tests/test_idealista_collector.py"
+
+    - id: "19.5"
+      title: "Roll out and verify dev, then prod"
+      description: >
+        dev: merging 19.4 triggers terraform-deploy; because bronze paths changed, the smoke job
+        runs dev-medallion-pipeline once. That is the single dev execution of this feature. If it
+        fails at credential retrieval, no Idealista request was spent (credentials are read before
+        the first API call); fix forward and re-run the failed job once. prod: dispatch
+        terraform-deploy for prod from main early in the week and have it approved; then check the
+        bronze role with aws iam simulate-principal-policy (ssm:GetParameter on both parameter
+        ARNs) and confirm the next scheduled Sunday run in the Pipeline Health tab. Never start the
+        prod state machine by hand. Record run URLs in the plan progress log.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["19.4"]
+      branch: "feature/ssm-parameter-store-credentials/19.5-rollout-verification"
+      commit_message: "docs(plans): record FEATURE-019 rollout verification"
+      acceptance_criteria:
+        - "GREEN: dev apply and pipeline smoke run are green; bronze wrote sale and rent objects for the run"
+        - "GREEN: prod apply is green after approval; simulate-principal-policy returns allowed for both parameters"
+        - "GREEN: the first scheduled prod run after the apply succeeded (Pipeline Health green for bronze)"
+        - "GREEN: exactly one dev state-machine execution was started for this feature (plus at most one re-run after a zero-quota failure)"
+      allowed_files:
+        - "dev/plans/FEATURE-019-ssm-parameter-store-credentials.md"
+        - "dev/plans/README.md"
+        - "dev/plans/technical/FEATURE-019-technical-plan.yaml"
+      forbidden_files:
+        - "src/**"
+        - "infrastructure/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-019-ssm-parameter-store-credentials.md"
+
+    - id: "19.6"
+      title: "Remove Secrets Manager from Terraform and from the code"
+      description: >
+        Only after 19.5 is fully green. dev and prod: remove the idealista_secrets module call, the
+        two removed blocks and the four idealista_secret_* outputs; delete
+        infrastructure/modules/secrets. The apply schedules the four secrets for deletion with the
+        7-day recovery window (rollback inside that window: aws secretsmanager restore-secret plus
+        a revert). Code: remove SecretsManagerProvider, its tests, its export and the
+        secretsmanager moto extra. Must not touch src/etl/data_collection/ or
+        modules/lambda_bronze/ (review L2: those paths trigger a full dev pipeline run).
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["19.5"]
+      branch: "feature/ssm-parameter-store-credentials/19.6-remove-secrets-manager"
+      commit_message: "refactor: remove Secrets Manager secrets and provider"
+      acceptance_criteria:
+        - "GREEN: PR plan for dev and prod destroys exactly the two secrets per environment and changes nothing else"
+        - "GREEN: pytest passes with coverage at or above 80%; no reference to SecretsManagerProvider remains in src/"
+        - "GREEN: the smoke job after the merge runs in direct mode (no pipeline execution)"
+        - "GREEN: after dev and prod applies, aws secretsmanager list-secrets shows the four secrets as scheduled for deletion"
+      allowed_files:
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/outputs.tf"
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/outputs.tf"
+        - "infrastructure/modules/secrets/**"
+        - "src/etl/common/secrets_provider.py"
+        - "src/etl/common/__init__.py"
+        - "src/etl/common/tests/test_secrets_provider.py"
+        - "src/etl/requirements-dev.txt"
+      forbidden_files:
+        - "src/etl/data_collection/**"
+        - "infrastructure/modules/lambda_bronze/**"
+        - "infrastructure/shared/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/environments/dev/main.tf"
+        - "infrastructure/environments/dev/outputs.tf"
+        - "infrastructure/environments/prod/main.tf"
+        - "infrastructure/environments/prod/outputs.tf"
+        - "src/etl/common/secrets_provider.py"
+        - "src/etl/common/__init__.py"
+        - "src/etl/common/tests/test_secrets_provider.py"
+        - "src/etl/requirements-dev.txt"
+
+    - id: "19.7"
+      title: "IAM cleanup and documentation"
+      description: >
+        After 19.6 is applied in dev and prod. shared/github-oidc (LOCAL apply): remove
+        IdealistaSecretsRead from the boundary, the secretsmanager read actions from
+        terraform_read_actions, SecretMetadata and local.apply_secret_arns from the apply role;
+        keep the secretsmanager value denies (defence in depth costs nothing). Update the matrix.
+        Docs: README (setup and rotation with aws ssm put-parameter --overwrite), CLAUDE.md
+        (features, diagram, tech stack), documentation/DATA_COLLECTION_LAYER.md,
+        documentation/CI_CD.md, src/etl/README.md, src/etl/tests/README.md; comment in
+        src/etl/common/search_config.py. Correct the Terraform reasoning in the feature plan
+        (review M5). Mark FEATURE-019 complete.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1.25
+      depends_on: ["19.6"]
+      branch: "feature/ssm-parameter-store-credentials/19.7-iam-cleanup-and-docs"
+      commit_message: "docs: document Parameter Store credentials and drop Secrets Manager IAM"
+      acceptance_criteria:
+        - "GREEN: simulate_apply_role.py --plan and, after the local apply, --role report 0 failures"
+        - "GREEN: iam_action_inventory.sh --check passes"
+        - "GREEN: grep for 'Secrets Manager' and 'secretsmanager' outside dev/plans, dev/reviews and the retained deny statements returns nothing"
+        - "GREEN: workflow-consistency passes with FEATURE-019 marked complete"
+      allowed_files:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/simulate_apply_role.py"
+        - "README.md"
+        - "CLAUDE.md"
+        - "documentation/**"
+        - "src/etl/README.md"
+        - "src/etl/tests/README.md"
+        - "src/etl/common/search_config.py"
+        - "dev/plans/**"
+        - "dev/reviews/REVIEW-FEATURE-019.md"
+      forbidden_files:
+        - "src/etl/data_collection/**"
+        - "infrastructure/modules/**"
+        - "infrastructure/environments/**"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "infrastructure/shared/github-oidc/main.tf"
+        - "infrastructure/shared/github-oidc/simulate_apply_role.py"
+        - "README.md"
+        - "CLAUDE.md"
+        - "documentation/DATA_COLLECTION_LAYER.md"
+        - "documentation/CI_CD.md"
+
+  git_workflow:
+    branch_root: "feature/ssm-parameter-store-credentials"
+    commit_style: "One commit per task using the task commit_message"
+    merge_strategy: "One branch and one PR per task, each based on main (no stacking). 19.1-19.3 are independent. 19.4 merges only after the 19.2 local apply and the owner's 19.3 run for dev and prod. 19.6 merges only after the first green scheduled prod run."
+    pre_pr_checks:
+      - "python-lint-and-test"
+      - "terraform-validate"
+      - "workflow-consistency"
+
+  notes:
+    - "Credential values are never read, printed or copied by an AI agent or by CI. Task 19.3 execution is an owner step."
+    - "Parameters are deliberately not Terraform resources: a managed aws_ssm_parameter is read on every refresh, so the CI roles would need decrypt access to the credential (review M5)."
+    - "All shared/github-oidc applies are LOCAL by design. CI must never be able to modify its own roles or the boundary."
+    - "Idealista quota is shared between dev and prod (100 requests/month). Never run the prod state machine as a test; 19.4 is the only task allowed to trigger a dev pipeline run."
+    - "Parameter names start with '/': the ARN is arn:aws:ssm:<region>:<account>:parameter + name, without an extra slash."
+    - "PR base branches: always main. Stacked PRs landed in intermediate branches during FEATURE-016/018 and had to be re-landed."
+    - "Do not touch stray files infrastructure/environments/dev/tfplan-health-fix and infrastructure/environments/prod/response.json."
+    - "Rollback before 19.6: revert the 19.4 commit and apply. Inside the 7-day window after 19.6: restore-secret, then revert 19.6 and 19.4."
