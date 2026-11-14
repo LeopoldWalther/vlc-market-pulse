@@ -11,6 +11,12 @@
  */
 
 import { buildLayout } from '../chart_theme.js';
+import { sumCountsBy } from '../reaggregate.js';
+
+// Chart grain. The gold layer may emit these rows additionally split by
+// district/neighbourhood (FEATURE-016) so they can be scope-filtered; the
+// chart itself plots one value per combination of these fields.
+const GRAIN = ['operation', 'rooms'];
 
 /**
  * Deterministic comparator: numeric room values sort ascending by value;
@@ -69,7 +75,7 @@ export const roomsDistributionRenderer = {
    * @returns {{data: Array<object>, layout: object}}
    */
   render(dataBasis, context = { viewport: 'desktop', colorScheme: 'light' }) {
-    const rows = dataBasis?.rooms_distribution ?? [];
+    const rows = sumCountsBy(dataBasis?.rooms_distribution, GRAIN);
     const layout = buildLayout({
       viewport: context.viewport,
       colorScheme: context.colorScheme,

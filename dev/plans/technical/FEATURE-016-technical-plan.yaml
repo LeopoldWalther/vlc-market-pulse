@@ -27,7 +27,7 @@ technical_plan:
         key combination that carries exactly the key fields plus count_listings, in first-seen
         order. Never mutates its input. Rows that already sit at the requested grain come back
         with unchanged values (review H1: one build must handle the old and the new gold shape).
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []
@@ -61,7 +61,7 @@ technical_plan:
         traces: (operation, snapshot_date), (operation, bin_start_m2, bin_end_m2),
         (operation, rooms), (operation, bin_start_price_m2, bin_end_price_m2). Output for today's
         undimensioned rows must be identical to the current output.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 1.5
       depends_on: ["16.1"]
@@ -101,7 +101,7 @@ technical_plan:
         exists, otherwise data_basis) after applyScope(). Remove SCOPED_DATA_BASIS_RENDERER_IDS
         (review M2). The population toggle re-renders the Data Basis tab when it has been visited.
         The search-config panel keeps reading data_basis.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["16.2"]

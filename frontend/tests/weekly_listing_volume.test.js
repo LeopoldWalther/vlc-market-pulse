@@ -40,3 +40,20 @@ describe('weeklyListingVolumeRenderer', () => {
     expect(fig.layout.font).toBeDefined();
   });
 });
+
+describe('weeklyListingVolumeRenderer with district/neighbourhood-dimensioned rows (FEATURE-016)', () => {
+  const dimensioned = {
+    weekly_listing_volume: [
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', snapshot_date: '2026-01-04', count_listings: 30 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', snapshot_date: '2026-01-04', count_listings: 12 },
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', snapshot_date: '2026-01-11', count_listings: 31 },
+    ],
+  };
+
+  it('collapses the rows back to one point per snapshot with summed counts', () => {
+    const fig = weeklyListingVolumeRenderer.render(dimensioned);
+    const sale = fig.data.find((t) => t.meta?.operation === 'sale');
+    expect(sale.x).toEqual(['2026-01-04', '2026-01-11']);
+    expect(sale.y).toEqual([42, 31]);
+  });
+});
