@@ -1,6 +1,6 @@
 # FEATURE-013 — Pipeline Health tab: detailed views & history
 
-**Status:** 🟡 In progress · **Effort:** L (~33–34 h) · **Priority:** Medium
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** L (~33–34 h) · **Priority:** Medium
 **Branch root:** `feature/pipeline-health-detail-views` · **Created:** 2026-07-18 · **Updated:** 2026-07-18
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-013.md`).
@@ -488,3 +488,6 @@ incremental cost is one extra Cost Explorer API call per pipeline-health Lambda 
   - **Prod promotion — intentionally not performed.** Per explicit instruction, prod deployment is
     held for a separate, explicitly-approved apply after dev verification is reviewed. Status stays
     🟡 *In progress* (not 🟢 *Complete*) until that promotion happens.
+- **2026-11-13** — Status reconciled with reality: prod was promoted after the dev verification —
+  `gold/pipeline_health/latest.json` reports `schema_version: "1.1"` in dev and prod, and the prod
+  frontend bucket carries the detail-view assets. Marked 🟢 complete.

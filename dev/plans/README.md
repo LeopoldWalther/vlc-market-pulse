@@ -8,24 +8,24 @@ small, version-controlled, independently testable tasks.
 
 | ID | Title | Status | Branch | Effort | Priority | Owner |
 |----|-------|--------|--------|--------|----------|-------|
-| FEATURE-002 | Idealista web scraper — OOP service on AWS Fargate | 🟡 | `feature/idealista-web-scraper` | 6–8 d | High | /implementer |
+| FEATURE-002 | Idealista web scraper — OOP service on AWS Fargate (moved to sibling repo `vlc-market-oracle`) | ⚪ | `feature/idealista-web-scraper` | 6–8 d | High | /implementer |
 | FEATURE-003 | Silver cleaning Lambda (bronze → cleaned listings) | 🟢 | `feature/silver-cleaning-lambda` | 1.5–2 d | High | /implementer |
 | FEATURE-004 | Gold aggregation Lambda (silver → aggregations JSON) | 🟢 | `feature/gold-aggregation-lambda` | 1–1.5 d | High | Unassigned |
 | FEATURE-005 | Static visualization web app (S3 + CloudFront) | 🟢 | `feature/static-visualization-webapp` | 1.5–2 d | Medium | Unassigned |
 | FEATURE-006 | Prod promotion: wire silver + gold lambdas in prod | 🟢 | `feature/prod-promotion-silver-gold` | ~7 h | High | Unassigned |
-| FEATURE-007 | Step Functions orchestration (bronze → silver → gold) | 🔵 | `feature/step-functions-orchestration` | 12–16 h | Medium | Unassigned |
+| FEATURE-007 | Step Functions orchestration (bronze → silver → gold) | 🟢 | `feature/step-functions-orchestration` | 12–16 h | Medium | Unassigned |
 | FEATURE-008 | OOP/SOLID refactor of the ETL pipeline | 🟢 | `feature/oop-refactor-pipeline` | M (~1.5–2 d) | Medium | /implementer |
 | FEATURE-009 | Frontend redesign: clean, modern, mobile-first dashboard | 🟢 | `feature/frontend-redesign` | M–L (~16.5–18 h) | Medium | Unassigned |
 | FEATURE-010 | Rolling 3-month median for rent/sale KPI tiles | 🟢 | `feature/rolling-3m-median-kpis` | M (~1–1.5 d) | Medium | /implementer |
 | FEATURE-011 | Dashboard tabs & Data Basis (deployed dev+prod) | ✅ | `feature/dashboard-tabs-data-basis` | L (~3–3.5 d) | Medium | /implementer |
 | FEATURE-012 | Pipeline Health monitoring (traffic light: bronze/silver/gold, API quota, AWS cost) | 🟢 | `feature/pipeline-health-monitoring` | L (~3.5–4 d) | Medium | /implementer |
-| FEATURE-013 | Pipeline Health tab — detailed views & history (Medallion diagram, 4 KPI history charts, threshold captions) | 🟡 | `feature/pipeline-health-detail-views` | L (~35 h) | Medium | /implementer |
-| FEATURE-014 | Dashboard UX refinements: health thresholds, trend counts, population dropdown, footer cleanup, Data Basis shared filter-bar | 🟡 | `feature/dashboard-ux-refinements` | M–L (~22.5 h) | Medium | /implementer |
+| FEATURE-013 | Pipeline Health tab — detailed views & history (Medallion diagram, 4 KPI history charts, threshold captions) | 🟢 | `feature/pipeline-health-detail-views` | L (~35 h) | Medium | /implementer |
+| FEATURE-014 | Dashboard UX refinements: health thresholds, trend counts, population dropdown, footer cleanup, Data Basis shared filter-bar | 🟢 | `feature/dashboard-ux-refinements` | M–L (~22.5 h) | Medium | /implementer |
 | FEATURE-016 | Data Basis: district/neighbourhood dimensions + population split for the remaining 4 charts (follow-up to FEATURE-014, split by /reviewer) | 🔵 | `feature/data-basis-dimensioned-filters` | M (~11.5 h, pending own review) | Medium | Unassigned |
 | FEATURE-017 | Subdomain-scoped certificates; hand `leopoldwalther.com` ownership to the website repository | 🟢 | `feature/subdomain-scoped-certificates` | S (~4.25 h) | Medium | /implementer |
 | FEATURE-018 | Working, secure Terraform deploys from GitHub Actions (PR plan, dev auto-apply, gated prod) | 🟡 | `feature/ci-terraform-deploy` | M (~10–12 h) | High | Unassigned |
 
-**Status:** 🔵 planned · 🟡 in progress · 🟢 complete · 🔴 blocked
+**Status:** 🔵 planned · 🟡 in progress · 🟢 complete · 🔴 blocked · ⚪ superseded
 
 ## Dependencies
 

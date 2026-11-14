@@ -1,6 +1,6 @@
 # FEATURE-007 — Step Functions orchestration of the bronze → silver → gold pipeline
 
-**Status:** 🔵 Planned · **Effort:** M (~12–16 h) · **Priority:** Medium
+**Status:** 🟢 Complete — deployed to dev and prod · **Effort:** M (~12–16 h) · **Priority:** Medium
 **Branch root:** `feature/step-functions-orchestration` · **Created:** 2026-06-06 · **Updated:** 2026-06-06
 
 > Authored by `@architect`. Reviewed by `@reviewer` (see `dev/reviews/REVIEW-FEATURE-007.md`).
@@ -211,3 +211,6 @@ transitions (3 task states + retries/choice/terminal states).
   Standard state machine (bronze → silver → gold) with retry/catch/SNS. Coordinates with FEATURE-006
   (prod promotion should wire the state machine, not the separate crons). Gold task state gated on
   FEATURE-004 completion.
+- **2026-11-13** — Status reconciled with reality: all six tasks are `done` in the technical plan and
+  both `dev-medallion-pipeline` and `prod-medallion-pipeline` exist in AWS, each with a single
+  `*-medallion-pipeline-weekly` schedule and no per-Lambda schedules. Marked 🟢 complete.
