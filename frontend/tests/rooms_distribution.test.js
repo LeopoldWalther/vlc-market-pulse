@@ -43,3 +43,20 @@ describe('roomsDistributionRenderer', () => {
     expect(roomsDistributionRenderer.render(null).layout).toBeTypeOf('object');
   });
 });
+
+describe('roomsDistributionRenderer with district/neighbourhood-dimensioned rows (FEATURE-016)', () => {
+  const dimensioned = {
+    rooms_distribution: [
+      { operation: 'sale', district: 'Extramurs', neighborhood: 'Arrancapins', rooms: 3, count_listings: 4 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', rooms: 3, count_listings: 5 },
+      { operation: 'sale', district: 'Ciutat Vella', neighborhood: 'El Carme', rooms: 2, count_listings: 1 },
+    ],
+  };
+
+  it('collapses the rows back to one bar per room count with summed counts', () => {
+    const fig = roomsDistributionRenderer.render(dimensioned);
+    const sale = fig.data.find((t) => t.meta?.operation === 'sale');
+    expect(sale.x).toEqual(['2', '3']);
+    expect(sale.y).toEqual([1, 9]);
+  });
+});

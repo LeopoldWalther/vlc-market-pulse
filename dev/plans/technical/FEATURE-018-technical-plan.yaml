@@ -432,7 +432,7 @@ technical_plan:
         these to the apply role in shared/github-oidc and apply locally. Iterate on apply-role
         AccessDenied errors surfaced by the first dev apply (expected); each fix is a local apply of
         shared/github-oidc in this task.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["18.7", "18.8", "18.9"]
@@ -469,7 +469,7 @@ technical_plan:
         terraform-deploy.yml, terraform-validate.yml plan), the README deploy section, and remove the
         secrets.tfvars instructions from documentation/DATA_COLLECTION_LAYER.md. Mark FEATURE-018
         complete in the plan file and dev/plans/README.md.
-      status: "not_started"
+      status: "in_progress"
       complexity: "low"
       estimated_hours: 1.5
       depends_on: ["18.10", "18.11"]

@@ -307,3 +307,18 @@ There is no Python, so coverage is unaffected. Each slice is verified against re
   the apply role had on the project buckets — a CI apply would have tried to recreate them. Fix:
   `ProjectBucketExistence` (`s3:ListBucket` on the 4 project buckets) in both roles; new matrix
   case. Also fixed: the untracked layer directory does not exist in a fresh checkout.
+- **2026-11-13** — 18.11 done. The first dev apply after merging PR #55 (run 43281993227) passed, but
+  the smoke job failed: `github-actions-apply` was not authorized for `lambda:InvokeFunction` on
+  `dev-silver-cleaner`. Cause: the smoke statements added in `c21f660` had never been applied —
+  `shared/github-oidc` is applied locally only. Local plan showed exactly one in-place change
+  (`SmokeInvokeLambdas`, `SmokeStartDevPipeline` on policy `compute`); applied. `simulate_apply_role.py
+  --role github-actions-apply`: 32/32 as expected, including the prod invoke/start denies. Re-run of
+  the failed job: apply and smoke green (direct-invoke path, no Idealista requests).
+- **2026-11-13** — 18.12 in progress. Verified: a prod dispatch from the non-main branch
+  `docs/plan-status-cleanup` (run 43517120867) is rejected by the environment branch rule before any
+  step runs. Docs written: deployment flow, smoke/quota budget, local-only steps and the reason for
+  the silent logs in `documentation/CI_CD.md`; CI table in `CLAUDE.md`; README deploy section;
+  `secrets.tfvars` instructions removed from `documentation/DATA_COLLECTION_LAYER.md`.
+  **Still open (owner):** dispatch `terraform-deploy.yml` for prod from `main` and approve it
+  (expected: no changes), dispatch `deploy-frontend.yml` for prod, then record both run URLs in the
+  verification table in `documentation/CI_CD.md` and mark 18.12 and the feature complete.

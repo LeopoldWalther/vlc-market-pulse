@@ -10,6 +10,12 @@
  */
 
 import { buildLayout } from '../chart_theme.js';
+import { sumCountsBy } from '../reaggregate.js';
+
+// Chart grain. The gold layer may emit these rows additionally split by
+// district/neighbourhood (FEATURE-016) so they can be scope-filtered; the
+// chart itself plots one value per combination of these fields.
+const GRAIN = ['operation', 'snapshot_date'];
 
 /**
  * Group weekly_listing_volume rows by operation into Plotly scatter traces.
@@ -49,7 +55,7 @@ export const weeklyListingVolumeRenderer = {
    * @returns {{data: Array<object>, layout: object}}
    */
   render(dataBasis, context = { viewport: 'desktop', colorScheme: 'light' }) {
-    const rows = dataBasis?.weekly_listing_volume ?? [];
+    const rows = sumCountsBy(dataBasis?.weekly_listing_volume, GRAIN);
     const layout = buildLayout({
       viewport: context.viewport,
       colorScheme: context.colorScheme,

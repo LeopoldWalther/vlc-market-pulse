@@ -1,0 +1,291 @@
+technical_plan:
+  metadata:
+    for_feature: "FEATURE-016"
+    title: "Data Basis: district/neighbourhood dimensions and population split for the remaining 4 charts"
+    created_by: "/reviewer"
+    created_at: "2026-11-13"
+    version: "1.0"
+    total_tasks: 7
+    estimated_hours: 9.5
+    risk_level: "medium"
+    critical_path: ["16.1", "16.2", "16.3", "16.4", "16.5", "16.7"]
+    reviewed_plan: "dev/reviews/REVIEW-FEATURE-016.md"
+
+  validation:
+    required_checks:
+      - "python-lint-and-test"
+      - "node-test"
+      - "workflow-consistency"
+    min_coverage: 80
+
+  tasks:
+    - id: "16.1"
+      title: "Shared count re-aggregation helper"
+      description: >
+        Add frontend/src/reaggregate.js exporting the pure function sumCountsBy(rows, keyFields):
+        group rows by the given key fields and sum count_listings, returning one row per distinct
+        key combination that carries exactly the key fields plus count_listings, in first-seen
+        order. Never mutates its input. Rows that already sit at the requested grain come back
+        with unchanged values (review H1: one build must handle the old and the new gold shape).
+      status: "done"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: []
+      branch: "feature/data-basis-dimensioned-filters/16.1-reaggregate-helper"
+      commit_message: "feat(frontend): add shared count re-aggregation helper"
+      acceptance_criteria:
+        - "RED: tests/reaggregate.test.js fails because the module does not exist"
+        - "GREEN: rows at the requested grain are returned with identical keys and counts"
+        - "GREEN: rows split across several districts/neighbourhoods collapse to one row per key with summed counts"
+        - "GREEN: empty, null and undefined input return an empty array; input rows are not mutated"
+        - "GREEN: non-numeric or missing count_listings counts as 0 instead of producing NaN"
+      allowed_files:
+        - "frontend/src/reaggregate.js"
+        - "frontend/tests/reaggregate.test.js"
+      forbidden_files:
+        - "src/**"
+        - "infrastructure/**"
+        - "frontend/src/filters.js"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create:
+        - "frontend/src/reaggregate.js"
+        - "frontend/tests/reaggregate.test.js"
+      files_to_modify: []
+
+    - id: "16.2"
+      title: "Collapse dimensioned rows in the four Data Basis renderers"
+      description: >
+        weekly_listing_volume.js, size_histogram.js, rooms_distribution.js and
+        price_per_area_histogram.js each call sumCountsBy() with their own grain before building
+        traces: (operation, snapshot_date), (operation, bin_start_m2, bin_end_m2),
+        (operation, rooms), (operation, bin_start_price_m2, bin_end_price_m2). Output for today's
+        undimensioned rows must be identical to the current output.
+      status: "done"
+      complexity: "medium"
+      estimated_hours: 1.5
+      depends_on: ["16.1"]
+      branch: "feature/data-basis-dimensioned-filters/16.2-renderer-collapse"
+      commit_message: "feat(frontend): collapse dimensioned data basis rows to chart grain"
+      acceptance_criteria:
+        - "RED: per renderer, a test with rows split over two districts expects one x value per bin with summed y and fails"
+        - "GREEN: the multi-district tests pass for all four renderers (five exported renderer objects)"
+        - "GREEN: every pre-existing renderer test still passes unchanged (regression guard)"
+      allowed_files:
+        - "frontend/src/charts/weekly_listing_volume.js"
+        - "frontend/src/charts/size_histogram.js"
+        - "frontend/src/charts/rooms_distribution.js"
+        - "frontend/src/charts/price_per_area_histogram.js"
+        - "frontend/tests/weekly_listing_volume.test.js"
+        - "frontend/tests/size_histogram.test.js"
+        - "frontend/tests/rooms_distribution.test.js"
+        - "frontend/tests/price_per_area_histogram.test.js"
+      forbidden_files:
+        - "src/**"
+        - "infrastructure/**"
+        - "frontend/src/filters.js"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "frontend/src/charts/weekly_listing_volume.js"
+        - "frontend/src/charts/size_histogram.js"
+        - "frontend/src/charts/rooms_distribution.js"
+        - "frontend/src/charts/price_per_area_histogram.js"
+
+    - id: "16.3"
+      title: "Scope and population selection for every Data Basis chart"
+      description: >
+        In frontend/app.js, renderDataBasisTab() passes every Data Basis renderer the block for the
+        active population (data_basis_relevant when the population is 'relevant' AND that key
+        exists, otherwise data_basis) after applyScope(). Remove SCOPED_DATA_BASIS_RENDERER_IDS
+        (review M2). The population toggle re-renders the Data Basis tab when it has been visited.
+        The search-config panel keeps reading data_basis.
+      status: "done"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["16.2"]
+      branch: "feature/data-basis-dimensioned-filters/16.3-wire-scope-population"
+      commit_message: "feat(frontend): apply scope and population to all data basis charts"
+      acceptance_criteria:
+        - "RED: app test expects weekly-listing-volume to narrow on a district scope change and fails"
+        - "GREEN: all Data Basis charts narrow to the selected district/neighbourhood"
+        - "GREEN: switching the population to 'relevant' re-renders Data Basis from data_basis_relevant"
+        - "GREEN: with data_basis_relevant absent (old gold JSON) the 'relevant' population falls back to data_basis without throwing"
+        - "GREEN: full vitest suite passes"
+      allowed_files:
+        - "frontend/app.js"
+        - "frontend/tests/app.test.js"
+        - "frontend/tests/app_tab_wiring.test.js"
+      forbidden_files:
+        - "src/**"
+        - "infrastructure/**"
+        - "frontend/src/filters.js"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "frontend/app.js"
+        - "frontend/tests/app.test.js"
+
+    - id: "16.4"
+      title: "District and neighbourhood dimensions on the four gold datasets"
+      description: >
+        In src/etl/data_processing/gold_aggregate.py add district and neighborhood to the group-by
+        keys (and the emitted records) of weekly_listing_volume(), size_histogram_10sqm(),
+        rooms_distribution() and price_per_area_histogram(). Existing field names and bin logic are
+        unchanged. Fix the stale 'UNSCOPED' docstring (review L1). Regenerate the golden master in
+        this task, after asserting general/relevant are untouched.
+      status: "not_started"
+      complexity: "medium"
+      estimated_hours: 2
+      depends_on: ["16.3"]
+      branch: "feature/data-basis-dimensioned-filters/16.4-gold-dimensions"
+      commit_message: "feat(gold): add district and neighbourhood to data basis datasets"
+      acceptance_criteria:
+        - "RED: tests expect district and neighborhood keys on each of the four datasets and fail"
+        - "GREEN: each dataset emits district and neighborhood; summing count_listings back to the old grain equals the pre-change counts for the same input"
+        - "GREEN: record key order is operation, district, neighborhood, then the pre-existing fields"
+        - "GREEN: golden master regenerated; its general and relevant blocks are byte-identical to before"
+        - "GREEN: pytest, ruff, black and mypy pass for src/etl"
+      allowed_files:
+        - "src/etl/data_processing/gold_aggregate.py"
+        - "src/etl/data_processing/gold_aggregator.py"
+        - "src/etl/data_processing/tests/test_gold_aggregate.py"
+        - "src/etl/data_processing/tests/test_gold_aggregator.py"
+        - "src/etl/data_processing/tests/test_gold_golden_master.py"
+        - "src/etl/data_processing/tests/fixtures/gold_latest_golden.json"
+      forbidden_files:
+        - "frontend/**"
+        - "infrastructure/**"
+        - "src/etl/data_processing/tests/fixtures/silver_fixture.json"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "src/etl/data_processing/gold_aggregate.py"
+        - "src/etl/data_processing/tests/test_gold_aggregate.py"
+        - "src/etl/data_processing/tests/fixtures/gold_latest_golden.json"
+
+    - id: "16.5"
+      title: "Additive data_basis_relevant block"
+      description: >
+        GoldAggregator.build_document() adds "data_basis_relevant", produced by running the same
+        Data Basis strategy list over _relevant_rows(scoped), directly after "data_basis". The
+        data_basis block and schema_version "1.0" stay unchanged. Regenerate the golden master.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1
+      depends_on: ["16.4"]
+      branch: "feature/data-basis-dimensioned-filters/16.5-relevant-block"
+      commit_message: "feat(gold): add data_basis_relevant population block"
+      acceptance_criteria:
+        - "RED: test expects a data_basis_relevant key with the same dataset keys as data_basis and fails"
+        - "GREEN: data_basis_relevant only counts rows matching RELEVANT_FILTER_SPEC; data_basis is unchanged by this task"
+        - "GREEN: an empty silver history yields empty datasets in both blocks without raising"
+        - "GREEN: golden master regenerated; general, relevant and data_basis blocks are identical to their state after 16.4"
+      allowed_files:
+        - "src/etl/data_processing/gold_aggregator.py"
+        - "src/etl/data_processing/tests/test_gold_aggregator.py"
+        - "src/etl/data_processing/tests/test_gold_golden_master.py"
+        - "src/etl/data_processing/tests/test_gold_aggregation_lambda.py"
+        - "src/etl/data_processing/tests/test_gold_smoke.py"
+        - "src/etl/data_processing/tests/fixtures/gold_latest_golden.json"
+      forbidden_files:
+        - "frontend/**"
+        - "infrastructure/**"
+        - "src/etl/data_processing/tests/fixtures/silver_fixture.json"
+      can_run_parallel_with: []
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "src/etl/data_processing/gold_aggregator.py"
+        - "src/etl/data_processing/tests/test_gold_aggregator.py"
+        - "src/etl/data_processing/tests/fixtures/gold_latest_golden.json"
+
+    - id: "16.6"
+      title: "Document the dimensioned datasets and the relevant block"
+      description: >
+        documentation/DATA_GOLD_LAYER.md: new district/neighborhood fields on the four datasets,
+        the data_basis_relevant key, that the relevant filter runs before the latest-by-property
+        dedup (review L2), and the updated sample block. documentation/FRONTEND_LAYER.md: Data Basis
+        charts follow scope and population, the re-aggregation helper, and the fallback for gold
+        documents without data_basis_relevant.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 0.75
+      depends_on: ["16.5"]
+      branch: "feature/data-basis-dimensioned-filters/16.6-docs"
+      commit_message: "docs: document dimensioned data basis datasets and relevant block"
+      acceptance_criteria:
+        - "GREEN: DATA_GOLD_LAYER.md lists district and neighborhood for all four datasets and describes data_basis_relevant"
+        - "GREEN: FRONTEND_LAYER.md no longer states that four Data Basis charts are unscoped"
+        - "GREEN: frontend-first deploy order is documented"
+      allowed_files:
+        - "documentation/DATA_GOLD_LAYER.md"
+        - "documentation/FRONTEND_LAYER.md"
+      forbidden_files:
+        - "src/**"
+        - "frontend/**"
+        - "infrastructure/**"
+      can_run_parallel_with: ["16.7"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "documentation/DATA_GOLD_LAYER.md"
+        - "documentation/FRONTEND_LAYER.md"
+
+    - id: "16.7"
+      title: "Full validation and deployment"
+      description: >
+        Run the full backend and frontend suites with coverage and the workflow consistency check.
+        Deploy per environment in this order: frontend, then gold (review H1). Dev: dispatch
+        deploy-frontend for dev, merge the backend, invoke dev-gold-aggregator, confirm latest.json
+        carries the dimensioned rows and data_basis_relevant, and record the payload size before and
+        after (review M3). Prod: dispatch deploy-frontend for prod, then the approved prod terraform
+        deploy, then one prod-gold-aggregator invoke. Never start a state-machine execution for this
+        feature (Idealista quota). Mark FEATURE-016 complete in the plan file and dev/plans/README.md.
+      status: "not_started"
+      complexity: "low"
+      estimated_hours: 1.25
+      depends_on: ["16.5"]
+      branch: "feature/data-basis-dimensioned-filters/16.7-validate-and-deploy"
+      commit_message: "chore: validate FEATURE-016 and record deployment verification"
+      acceptance_criteria:
+        - "GREEN: pytest and vitest pass; coverage on new/changed code is at least 80%"
+        - "GREEN: dev latest.json has district on weekly_listing_volume rows and a data_basis_relevant key"
+        - "GREEN: payload size before/after recorded in the plan progress log"
+        - "GREEN: prod verified the same way after the approved deploy"
+        - "GREEN: workflow-consistency passes with FEATURE-016 marked complete"
+      allowed_files:
+        - "dev/plans/FEATURE-016-data-basis-dimensioned-filters.md"
+        - "dev/plans/README.md"
+        - "dev/plans/technical/FEATURE-016-technical-plan.yaml"
+        - "dev/reviews/REVIEW-FEATURE-016.md"
+      forbidden_files:
+        - "src/**"
+        - "frontend/**"
+        - "infrastructure/**"
+      can_run_parallel_with: ["16.6"]
+      reversible: true
+      files_to_create: []
+      files_to_modify:
+        - "dev/plans/FEATURE-016-data-basis-dimensioned-filters.md"
+        - "dev/plans/README.md"
+
+  git_workflow:
+    branch_root: "feature/data-basis-dimensioned-filters"
+    commit_style: "One commit per task using the task commit_message"
+    merge_strategy: "One branch per task, stacked in dependency order. Frontend tasks (16.1-16.3) must be merged and deployed before the backend tasks (16.4-16.5) reach an environment."
+    pre_pr_checks:
+      - "python-lint-and-test"
+      - "node-test"
+      - "workflow-consistency"
+
+  notes:
+    - "Review H1: frontend first. The collapse helper is a no-op on undimensioned rows, so one frontend build works against both gold shapes."
+    - "schema_version stays \"1.0\": frontend/src/data_source.js rejects any other value, and all changes are additive fields or keys."
+    - "Silver drops rows without a neighbourhood, so grouping by neighbourhood cannot lose listings; the totals-preserved test in 16.4 guards this."
+    - "Never regenerate the golden master before asserting that the general and relevant blocks are unchanged."
+    - "Idealista quota is shared between dev and prod. Verification invokes the gold Lambda directly; it never starts the medallion state machine."
+    - "A merge touching src/etl/** triggers the FEATURE-018 dev apply. Its smoke job fails on a missing IAM permission until FEATURE-018 is finished; that is unrelated to this feature."
