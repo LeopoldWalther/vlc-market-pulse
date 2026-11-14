@@ -223,6 +223,12 @@ locals {
     ]
   ])
 
+  # Idealista credentials live in SSM Parameter Store as SecureString
+  # parameters created by the owner (FEATURE-019); Terraform never manages them.
+  idealista_parameter_arns = [
+    "arn:aws:ssm:*:${local.account_id}:parameter/vlc-market-pulse/*/idealista/*",
+  ]
+
   workload_log_group_arns = flatten([
     for env in ["dev", "prod"] : concat(
       [for fn in local.workload_functions : "arn:aws:logs:*:${local.account_id}:log-group:/aws/lambda/${env}-${fn}:*"],
@@ -296,6 +302,38 @@ data "aws_iam_policy_document" "workload_boundary" {
     effect    = "Allow"
     actions   = ["secretsmanager:GetSecretValue"]
     resources = ["arn:aws:secretsmanager:*:${local.account_id}:secret:*/idealista/*"]
+  }
+
+  # Read only. Parameter values are written by the owner, never by a workload.
+  statement {
+    sid       = "IdealistaParametersRead"
+    effect    = "Allow"
+    actions   = ["ssm:GetParameter"]
+    resources = local.idealista_parameter_arns
+  }
+
+  # SecureString parameters are encrypted with the AWS-managed key aws/ssm.
+  # Granted explicitly so that reading them never depends on how the key policy
+  # interacts with this boundary. The key ARN is not referenced (the CI plan
+  # role has no KMS read access); the two conditions scope the grant to
+  # decryption performed by SSM for this project's parameters.
+  statement {
+    sid       = "IdealistaParametersDecrypt"
+    effect    = "Allow"
+    actions   = ["kms:Decrypt"]
+    resources = ["*"]
+
+    condition {
+      test     = "StringLike"
+      variable = "kms:ViaService"
+      values   = ["ssm.*.amazonaws.com"]
+    }
+
+    condition {
+      test     = "StringLike"
+      variable = "kms:EncryptionContext:PARAMETER_ARN"
+      values   = local.idealista_parameter_arns
+    }
   }
 
   statement {
@@ -512,6 +550,23 @@ data "aws_iam_policy_document" "github_actions_plan" {
     sid       = "DenySecretValues"
     effect    = "Deny"
     actions   = ["secretsmanager:GetSecretValue"]
+    resources = ["*"]
+  }
+
+  # Neither CI role needs Parameter Store. Credential values (FEATURE-019) and
+  # any other parameter in the account stay out of reach.
+  statement {
+    sid    = "DenyParameterValues"
+    effect = "Deny"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath",
+      "ssm:GetParameterHistory",
+      "ssm:PutParameter",
+      "ssm:DeleteParameter",
+      "ssm:DeleteParameters",
+    ]
     resources = ["*"]
   }
 }
@@ -1051,6 +1106,23 @@ data "aws_iam_policy_document" "github_actions_apply_deny" {
     sid       = "DenySecretValues"
     effect    = "Deny"
     actions   = ["secretsmanager:GetSecretValue", "secretsmanager:PutSecretValue"]
+    resources = ["*"]
+  }
+
+  # Neither CI role needs Parameter Store. Credential values (FEATURE-019) and
+  # any other parameter in the account stay out of reach.
+  statement {
+    sid    = "DenyParameterValues"
+    effect = "Deny"
+    actions = [
+      "ssm:GetParameter",
+      "ssm:GetParameters",
+      "ssm:GetParametersByPath",
+      "ssm:GetParameterHistory",
+      "ssm:PutParameter",
+      "ssm:DeleteParameter",
+      "ssm:DeleteParameters",
+    ]
     resources = ["*"]
   }
 
