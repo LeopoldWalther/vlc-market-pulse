@@ -185,7 +185,10 @@ python simulate_apply_role.py --plan apply.json            # before apply
 python simulate_apply_role.py --role github-actions-apply  # after apply
 ```
 
-Result (2026-11-13, `--role github-actions-apply` against the deployed role, 32/32 as expected):
+Result (2026-11-14, `--role github-actions-apply` against the deployed role, 34/34 as expected):
+
+`explicit-deny` requires a matching Deny statement; a merely absent Allow fails the case.
+¹ Added with FEATURE-019 task 19.2; the plan role returns `explicitDeny` for both actions as well.
 
 | Action | Resource | Expected | Result |
 |---|---|---|---|
@@ -211,6 +214,8 @@ Result (2026-11-13, `--role github-actions-apply` against the deployed role, 32/
 | `iam:PassRole` | `role/dev-silver-cleaner-lambda-role` (+ctx) | deny | implicitDeny |
 | `secretsmanager:GetSecretValue` | `prod/idealista/lvw-api-credentials-x` | deny | explicitDeny |
 | `secretsmanager:PutSecretValue` | `prod/idealista/lvw-api-credentials-x` | deny | explicitDeny |
+| `ssm:GetParameter` | `parameter/vlc-market-pulse/prod/idealista/lvw-api-credentials` | explicit-deny | explicitDeny ¹ |
+| `ssm:PutParameter` | `parameter/vlc-market-pulse/prod/idealista/lvw-api-credentials` | explicit-deny | explicitDeny ¹ |
 | `s3:PutObject` | `vlc-real-estate-analytics-tf-state/vlc-state/shared/github-oidc/terraform.tfstate` | deny | explicitDeny |
 | `s3:GetObjectVersion` | `vlc-real-estate-analytics-tf-state/vlc-state/prod/terraform.tfstate` | deny | explicitDeny |
 | `s3:DeleteBucket` | `prod-vlc-real-estate-analytics-listings` | deny | explicitDeny |
