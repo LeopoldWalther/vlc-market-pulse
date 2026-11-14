@@ -197,7 +197,7 @@ technical_plan:
         bronze role with aws iam simulate-principal-policy (ssm:GetParameter on both parameter
         ARNs) and confirm the next scheduled Sunday run in the Pipeline Health tab. Never start the
         prod state machine by hand. Record run URLs in the plan progress log.
-      status: "not_started"
+      status: "in_progress"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["19.4"]
