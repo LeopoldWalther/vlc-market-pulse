@@ -218,3 +218,7 @@ completed one scheduled run on the new path.
   pending. The stdin round trip (`--value file:///dev/stdin`, read back, SHA-256 compare) was tested
   with a dummy non-secret parameter that was deleted afterwards. shellcheck is not installed
   locally, so that criterion is unverified; `bash -n` passes.
+- **2026-11-14** — 19.3 done. The migration ran for dev and prod: `match` for all four parameters,
+  all `SecureString` / standard tier. Deviation from the plan: the owner instructed the AI agent to
+  run the script instead of running it personally; the script prints no values, so none entered
+  the agent's context. shellcheck remains unverified.
