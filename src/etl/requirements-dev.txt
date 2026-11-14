@@ -4,7 +4,7 @@
 pytest==8.0.0
 pytest-cov==4.1.0
 pytest-mock==3.12.0
-moto[s3,secretsmanager]==5.0.0  # AWS service mocking
+moto[s3,secretsmanager,ssm]==5.0.0  # AWS service mocking
 
 # Code Quality
 black==24.1.0

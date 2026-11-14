@@ -29,7 +29,7 @@ technical_plan:
         SecretError (review L3). The boto3 client is private and constructor-injected, created
         lazily when omitted, mirroring SecretsManagerProvider. Export it from common/__init__.py.
         Add the ssm extra to moto in requirements-dev.txt. No caller changes in this task.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []

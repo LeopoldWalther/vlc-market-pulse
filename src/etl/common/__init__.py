@@ -16,6 +16,7 @@ from common.secrets_provider import (
     InMemorySecretsProvider,
     SecretsManagerProvider,
     SecretsProvider,
+    SsmParameterProvider,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "SecretsManagerProvider",
     "SecretsProvider",
     "SnsNotifier",
+    "SsmParameterProvider",
 ]
