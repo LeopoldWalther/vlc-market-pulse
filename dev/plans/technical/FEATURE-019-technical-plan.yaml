@@ -112,7 +112,7 @@ technical_plan:
         (review M3). Idempotent via --overwrite. Document the one-off step and the new rotation
         command in the README. OWNER STEP: the owner runs the script for dev and prod. It is never
         run by CI or by an AI agent, because it handles credential values.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: []
