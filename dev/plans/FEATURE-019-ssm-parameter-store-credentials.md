@@ -205,3 +205,7 @@ completed one scheduled run on the new path.
   module variables `secret_name_*` are kept, only the ARN variables go (M2); the migration script
   lives in `dev/tools/` and proves equality by hash (M3); CI roles are denied parameter values on
   `*` (M4). Naming decision: `/vlc-market-pulse/{env}/idealista/...`.
+- **2026-11-14** — 19.2 implemented, local apply pending. Local plan: exactly three in-place
+  changes (boundary, apply `guard-rails` policy, plan role policy). `simulate_apply_role.py --plan`:
+  34/34; the two new SSM cases use the new `explicit-deny` expectation and fail against the
+  currently deployed role (implicit deny only), as intended.

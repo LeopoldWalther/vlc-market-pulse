@@ -34,7 +34,9 @@ BCTX = [
     f"ContextKeyName=iam:PermissionsBoundary,ContextKeyValues={BOUNDARY},ContextKeyType=string"
 ]
 
-# (action, resource ARN, --context-entries, expected "allow" | "deny")
+# (action, resource ARN, --context-entries, expected)
+# expected: "allow", "deny" (implicit or explicit) or "explicit-deny" (an
+# explicit Deny statement must match — an absent Allow is not enough).
 CASES: List[Tuple[str, str, List[str], str]] = [
     ("lambda:UpdateFunctionConfiguration", FN("prod-idealista-collector"), [], "allow"),
     ("lambda:UpdateFunctionCode", FN("dev-silver-cleaner"), [], "allow"),
@@ -108,6 +110,18 @@ CASES: List[Tuple[str, str, List[str], str]] = [
         f"arn:aws:secretsmanager:eu-central-1:{ACCT}:secret:prod/idealista/lvw-api-credentials-x",
         [],
         "deny",
+    ),
+    (
+        "ssm:GetParameter",
+        f"arn:aws:ssm:eu-central-1:{ACCT}:parameter/vlc-market-pulse/prod/idealista/lvw-api-credentials",
+        [],
+        "explicit-deny",
+    ),
+    (
+        "ssm:PutParameter",
+        f"arn:aws:ssm:eu-central-1:{ACCT}:parameter/vlc-market-pulse/prod/idealista/lvw-api-credentials",
+        [],
+        "explicit-deny",
     ),
     (
         "s3:PutObject",
@@ -197,7 +211,10 @@ def main() -> int:
             subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
             or "ERROR"
         )
-        ok = (out == "allowed") == (exp == "allow")
+        if exp == "explicit-deny":
+            ok = out == "explicitDeny"
+        else:
+            ok = (out == "allowed") == (exp == "allow")
         failures += not ok
         print(
             f"| `{action}` | `{res.split(':')[-1]}`{' (+ctx)' if ctx else ''} | {exp} | {out}{'' if ok else ' ❌'} |"

@@ -71,7 +71,7 @@ technical_plan:
         ssm:GetParameterHistory, ssm:PutParameter, ssm:DeleteParameter and ssm:DeleteParameters on
         "*" (review M4). (3) Extend the simulate_apply_role.py matrix first, then the policy.
         The stack is applied LOCALLY, never by CI.
-      status: "not_started"
+      status: "in_progress"
       complexity: "medium"
       estimated_hours: 1.25
       depends_on: []
