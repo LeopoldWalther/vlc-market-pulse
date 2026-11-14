@@ -2,9 +2,10 @@
 Secrets edge interface + adapters for the ETL pipeline.
 
 Defines the :class:`SecretsProvider` Protocol (Abstraction / Dependency
-Inversion), the boto3-backed :class:`SecretsManagerProvider` production
-adapter (Adapter pattern) and the :class:`InMemorySecretsProvider` test
-fake (Polymorphism — interchangeable behind the same Protocol).
+Inversion), the boto3-backed production adapters
+:class:`SecretsManagerProvider` and :class:`SsmParameterProvider` (Adapter
+pattern) and the :class:`InMemorySecretsProvider` test fake (Polymorphism —
+all interchangeable behind the same Protocol).
 """
 
 from __future__ import annotations
@@ -84,6 +85,68 @@ class SecretsManagerProvider:
         except (json.JSONDecodeError, KeyError) as exc:
             logger.error("Malformed secret payload for %s: %s", name, exc)
             raise SecretError(f"Malformed secret payload: {exc}") from exc
+
+
+class SsmParameterProvider:
+    """
+    boto3-backed :class:`SecretsProvider` adapter for SSM Parameter Store.
+
+    Adapter pattern: wraps the vendor SDK behind the project-owned
+    Protocol. Each credential set is one ``SecureString`` parameter whose
+    value is a JSON object, so the contract matches
+    :class:`SecretsManagerProvider` (Liskov Substitution). Encapsulation:
+    the client is private; callers only see :meth:`get_secret`.
+    """
+
+    def __init__(self, ssm_client: object | None = None) -> None:
+        """
+        Args:
+            ssm_client: Optional pre-built boto3 SSM client (injected in
+                tests via moto). Created lazily from boto3 when omitted.
+        """
+        # boto3 stays inside the adapter (Dependency Inversion).
+        import boto3
+
+        self._client = ssm_client if ssm_client is not None else boto3.client("ssm")
+
+    def get_secret(self, name: str) -> Dict[str, str]:
+        """
+        Fetch, decrypt and JSON-decode the parameter stored under *name*.
+
+        Args:
+            name: Parameter name (starts with ``/``) or ARN.
+
+        Returns:
+            The parameter's key/value mapping.
+
+        Raises:
+            SecretError: When retrieval fails or the value is not a JSON
+                object.
+        """
+        import botocore.exceptions
+
+        try:
+            # CRITICAL: without WithDecryption a SecureString comes back as
+            # ciphertext, which would fail JSON decoding below.
+            response = self._client.get_parameter(  # type: ignore[attr-defined]
+                Name=name, WithDecryption=True
+            )
+            secret = json.loads(response["Parameter"]["Value"])
+        except botocore.exceptions.ClientError as exc:
+            logger.error("Error retrieving parameter %s: %s", name, exc)
+            raise SecretError(f"Failed to retrieve credentials: {exc}") from exc
+        except (json.JSONDecodeError, KeyError) as exc:
+            logger.error("Malformed secret payload for %s: %s", name, exc)
+            raise SecretError(f"Malformed secret payload: {exc}") from exc
+
+        if not isinstance(secret, dict):
+            # Never log the value itself — only its type.
+            logger.error("Parameter %s is not a JSON object", name)
+            raise SecretError(
+                f"Malformed secret payload: expected a JSON object, "
+                f"got {type(secret).__name__}"
+            )
+        return secret
 
 
 class InMemorySecretsProvider:
