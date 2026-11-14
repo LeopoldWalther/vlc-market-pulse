@@ -1,7 +1,7 @@
 # FEATURE-016 — Data Basis: district/neighbourhood dimensions + population split for the remaining 4 charts
 
 **Status:** 🔵 Planned · **Effort:** M (~11.5 h, reviewer estimate) · **Priority:** Medium
-**Branch root:** `feature/data-basis-dimensioned-filters` · **Created:** 2026-07-19
+**Branch root:** `feature/data-basis-dimensioned-filters` · **Created:** 2026-07-19 · **Reviewed:** 2026-11-13
 
 > **Provenance:** this is a stub plan extracted verbatim from `@architect`'s original FEATURE-014
 > Phase 5a/5b/5d content, split out by `@reviewer` during the FEATURE-014 review (see
@@ -110,6 +110,13 @@ graph TD
 
 ## Next step
 
-This stub needs its own `@architect`/`@reviewer` pass (full risk assessment, golden-master fixture
-review, and an executable `dev/plans/technical/FEATURE-016-technical-plan.yaml`) before
-implementation — do not hand this directly to `@implementer`.
+Reviewed on 2026-11-13 — see [REVIEW-FEATURE-016.md](../reviews/REVIEW-FEATURE-016.md). The executable
+plan is [FEATURE-016-technical-plan.yaml](technical/FEATURE-016-technical-plan.yaml). The review
+changes three things relative to the scope above: frontend tasks ship before backend tasks (H1),
+the re-aggregation is one shared helper instead of four private functions (M1), and
+`data_basis_relevant` carries every Data Basis dataset so the map follows the population toggle
+too (M2).
+
+## Progress log
+
+- **2026-11-13** — Reviewed by `/reviewer`; technical plan v1.0 created (7 tasks, ~9.5 h).
