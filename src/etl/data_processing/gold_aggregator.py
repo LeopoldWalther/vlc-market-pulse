@@ -237,7 +237,7 @@ class SearchConfigDataset:
 
 
 class WeeklyListingVolume:
-    """Strategy: per-snapshot-deduped listing counts, by operation + week."""
+    """Strategy: per-snapshot-deduped listing counts per operation, location and week."""
 
     key: str = "weekly_listing_volume"
 
@@ -247,7 +247,7 @@ class WeeklyListingVolume:
 
 
 class SizeHistogram10sqm:
-    """Strategy: latest-by-property 10 m2 size histogram."""
+    """Strategy: latest-by-property 10 m2 size histogram, per location."""
 
     key: str = "size_histogram_10sqm"
 
@@ -257,7 +257,7 @@ class SizeHistogram10sqm:
 
 
 class RoomsDistribution:
-    """Strategy: latest-by-property rooms distribution."""
+    """Strategy: latest-by-property rooms distribution, per location."""
 
     key: str = "rooms_distribution"
 
@@ -267,7 +267,7 @@ class RoomsDistribution:
 
 
 class PricePerAreaHistogram:
-    """Strategy: latest-by-property price/m2 histogram (operation-specific bins)."""
+    """Strategy: latest-by-property price/m2 histogram per location (operation-specific bins)."""
 
     key: str = "price_per_area_histogram"
 
@@ -435,17 +435,20 @@ class GoldAggregator:
     def build_document(self, silver_df: pd.DataFrame) -> Dict[str, Any]:
         """
         Assemble the frozen schema-v1.0 document, plus the additive
-        ``data_basis`` block, from a silver DataFrame.
+        ``data_basis`` and ``data_basis_relevant`` blocks, from a silver
+        DataFrame.
 
         Args:
             silver_df: Combined silver history (all operations/snapshots).
 
         Returns:
-            Dict matching schema v1.0 exactly (key order included), with one
-            additional top-level ``data_basis`` key. ``data_basis`` shares the
-            same ``apply_scope()`` district filter as ``general``/``relevant``
+            Dict matching schema v1.0 exactly (key order included), with two
+            additional top-level keys. ``data_basis`` shares the same
+            ``apply_scope()`` district filter as ``general``/``relevant``
             (operator decision 2026-07-18), but each strategy still owns its
-            own dedup semantics.
+            own dedup semantics. ``data_basis_relevant`` (FEATURE-016) runs
+            the same strategies over the relevant-population rows only, so
+            the Data Basis tab can follow the population toggle.
         """
         scoped = apply_scope(silver_df)
 
@@ -458,6 +461,13 @@ class GoldAggregator:
             "general": self._run_population(scoped, None, self._general),
             "relevant": self._run_population(scoped, _relevant_rows, self._relevant),
             "data_basis": self._run_data_basis(scoped, self._data_basis),
+            # The relevant filter runs BEFORE each strategy's own dedup, as
+            # it does for the `relevant` block: a listing whose newest
+            # snapshot no longer matches is still counted through its last
+            # matching snapshot.
+            "data_basis_relevant": self._run_data_basis(
+                _relevant_rows(scoped), self._data_basis
+            ),
         }
 
     # ------------------------------------------------------------------

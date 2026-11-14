@@ -136,7 +136,7 @@ technical_plan:
         rooms_distribution() and price_per_area_histogram(). Existing field names and bin logic are
         unchanged. Fix the stale 'UNSCOPED' docstring (review L1). Regenerate the golden master in
         this task, after asserting general/relevant are untouched.
-      status: "not_started"
+      status: "done"
       complexity: "medium"
       estimated_hours: 2
       depends_on: ["16.3"]
@@ -173,7 +173,7 @@ technical_plan:
         GoldAggregator.build_document() adds "data_basis_relevant", produced by running the same
         Data Basis strategy list over _relevant_rows(scoped), directly after "data_basis". The
         data_basis block and schema_version "1.0" stay unchanged. Regenerate the golden master.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 1
       depends_on: ["16.4"]
@@ -211,7 +211,7 @@ technical_plan:
         dedup (review L2), and the updated sample block. documentation/FRONTEND_LAYER.md: Data Basis
         charts follow scope and population, the re-aggregation helper, and the fallback for gold
         documents without data_basis_relevant.
-      status: "not_started"
+      status: "done"
       complexity: "low"
       estimated_hours: 0.75
       depends_on: ["16.5"]
