@@ -234,3 +234,11 @@ completed one scheduled run on the new path.
   explicit `kms:Decrypt` grant works under the boundary. **Open:** dispatch and approve the prod
   deploy after the scheduled run of Sunday 2026-11-15 (12:00 UTC), simulate the prod bronze role,
   then confirm the scheduled run of 2026-11-22 before starting 19.6.
+- **2026-11-15** — 19.5 prod deployed. The scheduled prod run (12:00 UTC, still on Secrets Manager)
+  SUCCEEDED and wrote 5 sale + 5 rent pages. Then the prod deploy
+  [run 43714284761](https://github.com/LeopoldWalther/vlc-market-pulse/actions/runs/43714284761)
+  was dispatched from `main` and approved: apply prod green. `prod-idealista-collector` now reads
+  `/vlc-market-pulse/prod/idealista/{lvw,pmv}-api-credentials`; the simulated prod bronze role is
+  `allowed` for `ssm:GetParameter` on both parameters and for `kms:Decrypt` via SSM with the
+  parameter ARN as encryption context. **Open:** confirm the scheduled run of 2026-11-22 on the
+  new path, then mark 19.5 done; 19.6 only after the owner's go.
