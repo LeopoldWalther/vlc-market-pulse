@@ -242,3 +242,9 @@ completed one scheduled run on the new path.
   `allowed` for `ssm:GetParameter` on both parameters and for `kms:Decrypt` via SSM with the
   parameter ARN as encryption context. **Open:** confirm the scheduled run of 2026-11-22 on the
   new path, then mark 19.5 done; 19.6 only after the owner's go.
+- **2026-11-23** — 19.5 done. The scheduled prod run of 2026-11-22 (12:00 UTC), the first one on
+  the new path, SUCCEEDED (`prod-medallion-pipeline` execution
+  `f96b02d9-400e-49a5-b3da-4c3c858aa6d6`) and wrote 9 sale + 5 rent pages
+  (`*_20261122_120013_*.json`). The `prod-idealista-collector` log shows `Retrieving credentials`
+  (the SSM provider) with no errors. **Next:** 19.6 only after the owner's go (it schedules the
+  four Secrets Manager secrets for deletion).
